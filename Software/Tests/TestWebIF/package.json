@@ -1,0 +1,19 @@
+{
+  "name": "testwebif",
+  "version": "1.0.0",
+  "description": "test for blinds controller web interface",
+  "main": "testWebIF.js",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0",
+    "jade": "^1.11.0",
+    "moment": "^2.15.0",
+    "request": "^2.74.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rob Dobson",
+  "license": "ISC"
+}

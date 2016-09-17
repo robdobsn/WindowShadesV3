@@ -1,0 +1,306 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+	<title>Office Blinds Control</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+    <script type="text/javascript">
+		function bodyIsLoaded()
+		{
+			window.windowShadeState = { isAdvanced: false,
+				numShades: 1,
+				name: "Window Shades",
+				shades: [
+					{ name: "Shade1", num: "1" },
+					{ name: "Shade2", num: "2" },
+					{ name: "Shade3", num: "3" },
+					{ name: "Shade4", num: "4" },
+					{ name: "Shade5", num: "5" },
+					{ name: "Shade6", num: "6" }
+				 ]
+			};
+			updateDisplay();
+		}
+        function callAjax(url, callback)
+        {
+            var xmlhttp;
+            // code for IE7+, Firefox, Chrome, Opera, Safari
+            xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function()
+            {
+                if (xmlhttp.readyState == 4 && xmlhttp.status == 200)
+                {
+                    callback(xmlhttp.responseText);
+                }
+            }
+
+            xmlhttp.open("GET", url, true);
+            xmlhttp.send();
+        }
+        function ajaxCallback()
+        {
+        }
+		function shadeInfoCallback(jsonResp)
+		{
+			jsonData = JSON.parse(jsonResp);
+//			jsonData = { name: "Office Blinds", shades: [ { name: "Shade1", num: "1" }, { name: "Shade2", num: "2" } ] };
+			window.windowShadeState.numShades = jsonData.numShades;
+			window.windowShadeState.name = jsonData.name;
+			for (var i = 0; i < window.windowShadeState.numShades; i++)
+			{
+				window.windowShadeState.shades[i].name = jsonData.shades[i].name;
+			}
+			genShadeHead();
+			genShadeList();
+		}
+		function sendShadesInfo()
+		{
+			var shadeCfgStr = window.windowShadeState.name + "/" + window.windowShadeState.numShades + "/";
+			for (var i = 0; i < 6; i++)
+			{
+				shadeCfgStr += window.windowShadeState.shades[i].name;
+				shadeCfgStr += "/";
+			}
+			callAjax("/shadecfg/" + shadeCfgStr, shadeInfoCallback);
+		}
+		function setNumShades(numShades)
+		{
+			console.log(numShades);
+			window.windowShadeState.numShades = numShades;
+			sendShadesInfo();
+		}
+		function shadeNameChanged(shadeIdx, shadeName)
+		{
+			console.log("New name for shade " + shadeIdx + " = " + shadeName);
+			window.windowShadeState.shades[shadeIdx].name = shadeName;
+			sendShadesInfo();
+		}
+		function windowNameChanged(windowName)
+		{
+			console.log("New name for window " + windowName);
+			window.windowShadeState.name = windowName;
+			sendShadesInfo();
+		}
+		function genShadeHead()
+		{
+			var shadesData = window.windowShadeState;
+			var headerDiv = document.getElementById("shadesHeader");
+			var headStr = "<div class='shade-header'>";
+			if (!window.windowShadeState.isAdvanced)
+			{
+			headStr += shadesData.name;
+			}
+			else
+			{
+				headStr += "<input onchange='windowNameChanged(this.value)' class='window-name-edit' type='text' name='windowNameVal' value='" + shadesData.name + "'></div>\r\n";
+			}
+			headStr += '</div>\r\n';
+			headerDiv.innerHTML = headStr;
+		}
+		function genShadeList()
+		{
+			var shadesData = window.windowShadeState;
+			var shadesDiv = document.getElementById("shadeList");
+			var listStr = "<div class='shade-list'>";
+		    for (var shadeIdx = 0; shadeIdx < shadesData.numShades; shadeIdx++)
+			{
+				var shadeInfo = shadesData.shades[shadeIdx];
+				if (!window.windowShadeState.isAdvanced)
+				{
+					listStr += getNormalSettings(shadeInfo, shadeIdx);
+				}
+				else
+				{
+					listStr += getAdvancedSettings(shadeInfo, shadeIdx);
+				}
+		    }
+		    listStr += '</div>\r\n';
+			if (window.windowShadeState.isAdvanced)
+			{
+				// Settings
+				listStr += "<div class='shade-config'>";
+				listStr += 'Number of blinds: ';
+				listStr += '<select class="shade-num-edit" onchange="setNumShades(this.value)">';
+				for (var i = 0; i < 6; i++)
+				{
+					listStr += '<option value="' + (i+1) + '" ' + (i+1 == window.windowShadeState.numShades ? 'selected' : '') + '>' + (i+1) + '</option>'
+				}
+				listStr += '</select>';
+				listStr += "</div>";
+			}
+			shadesDiv.innerHTML = listStr;
+		}
+		function toggleAdvanced()
+		{
+			window.windowShadeState.isAdvanced = !window.windowShadeState.isAdvanced;
+			updateDisplay();
+		}
+		function updateDisplay()
+		{
+			callAjax("/q/q", shadeInfoCallback);
+		}
+		function getNormalSettings(shadeInfo, shadeIdx)
+		{
+			var exStr = "";
+			exStr += "<div class='shade-group'>\r\n"
+			exStr += "<div class='shade-name'>" + shadeInfo.name + "</div>\r\n";
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/up/pulse',ajaxCallback)\">Up</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/stop/pulse',ajaxCallback)\">Stop</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/down/pulse',ajaxCallback)\">Down</a></div>\r\n";
+			exStr += "</div>"
+			exStr += "</div>\r\n";
+			return exStr;
+
+		}
+		function getAdvancedSettings(shadeInfo, shadeIdx)
+		{
+			var exStr = "";
+			exStr += "<div class='shade-group'>\r\n"
+			exStr += "<div class='shade-config'>\r\n"
+			exStr += "Name <input onchange='shadeNameChanged(" + shadeIdx + ", this.value)' class='shade-name-edit' type='text' name='shadeNameVal'" + shadeIdx + "' value='" + shadeInfo.name + "'></div>\r\n";
+			exStr += "</div>";
+			// Up
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/up/pulse',ajaxCallback)\">Up</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/up/on',ajaxCallback)\">UpOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/up/off',ajaxCallback)\">UpOff</a></div>\r\n";
+			exStr += "</div>"
+			// Stop
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/stop/pulse',ajaxCallback)\">Stop</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/stop/on',ajaxCallback)\">StopOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/stop/off',ajaxCallback)\">StopOff</a></div>\r\n";
+			exStr += "</div>"
+			// Down
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/down/pulse',ajaxCallback)\">Down</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/down/on',ajaxCallback)\">DownOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/down/off',ajaxCallback)\">DownOff</a></div>\r\n";
+			exStr += "</div>"
+			// Rotation
+			exStr += "<div class='shade-list-comment'><b>Rotation</b> press the Up to check the direction - if the shade falls then StopOn button until the shade jogs and direction is modified - then StopOff</div>\r\n";
+			// Up Limit Initial
+			exStr += "<div class='shade-list-comment'><b>Up Limit Initially</b> press UpOn or DownOn until at desired position, then UpLimOn/DownLimOn, then xxLimOff when blind moves, then StopOn until jogs, then StopOff</div>\r\n";
+			// Up Limit Adjust
+			exStr += "<div class='shade-list-comment'><b>Up Limit Adust</b> press Up or Down to move to limit to adjust, then UpLimOn/DownLimOn, then xxLimOff when jogs, then UpOn or DownOn to move to required position, then StopOn until jogs, then StopOff</div>\r\n";
+			// Limit buttons
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setuplimit/pulse',ajaxCallback)\">UpLim</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setuplimit/on',ajaxCallback)\">UpLimOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setuplimit/off',ajaxCallback)\">UpLimOff</a></div>\r\n";
+			exStr += "</div>"
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setdownlimit/pulse',ajaxCallback)\">DownLim</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setdownlimit/on',ajaxCallback)\">DownLimOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/setdownlimit/off',ajaxCallback)\">DownLimOff</a></div>\r\n";
+			exStr += "</div>"
+			// Reset memory
+			exStr += "<div class='shade-list-comment'><b>Reset Memory</b> press the ResetOn button below and then ResetOff once the shade jogs three times</div>\r\n";
+			exStr += "<div class='shade-list-line'>"
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/resetmemory/pulse',ajaxCallback)\">Reset</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/resetmemory/on',ajaxCallback)\">ResetOn</a></div>\r\n";
+			exStr += "<div class='shade-list-item'><a href='javascript:void(0)' onclick=\"callAjax('/blind/" + shadeInfo.num +"/resetmemory/off',ajaxCallback)\">ResetOff</a></div>\r\n";
+			exStr += "</div>"
+			// Roller speed
+			exStr += "<div class='shade-list-comment'><b>Roller Speed</b> press StopOn until jogs twice, then StopOff, shade moves up and down, press Up/Down to increase/decrease speed, press StopOn until jogs, then StopOff</div>\r\n";
+			// My Position
+			exStr += "<div class='shade-list-comment'><b>Set My Position</b> move to desired position using Up/Down/Stop, then StopOn until jogs, then StopOff</div>\r\n";
+			exStr += "<div class='shade-list-comment'><b>Delete My Position</b> move to position, then StopOn until jogs, then StopOff</div>\r\n";
+			exStr += "</div>\r\n"
+
+			return exStr;
+		}
+    </script>
+    <style>
+	body {
+	  font-family: Helvetica;
+	  line-height: 1.4em;
+	  font-size:12pt;
+	  background-color: #000000;
+	  color: #c0c0c0;
+	}
+	.shade-header{
+	  padding-top: 20px;
+	  padding-bottom: 20px;
+	  background-color: #000000;
+	  width: 100%;
+	  font-size: 2em;
+	  color: #f0f0f0;
+	  text-align: center;
+	}
+	.shade-list{
+	}
+	.shade-group{
+	}
+	.shade-name{
+	  padding: 10px;
+	  background-color: #303030;
+	  width: 100%;
+	  font-size: 1.5em;
+	  color: #ffffff;
+	}
+	.shade-list-line{
+		display:block;
+		padding: 10px;
+	}
+	.shade-list-item{
+		display: inline-block;
+	  padding: 10px;
+	  padding-left: 30px;
+	  width: 20%;
+	  font-size: 1.5em;
+	  color: #ffffff;
+	}
+	.shade-list-item a {
+	  text-decoration: none;
+	  color: #94f3ff;
+	}
+	.shade-config {
+		padding: 10px;
+		margin-top: 30px;
+		width: 100%;
+    	  font-size: 1.2em;
+    	  color: #f0f0f0;
+	}
+	.shade-advanced {
+		padding-top: 10px;
+		padding-bottom: 10px;
+		margin-top: 30px;
+  	  background-color: #202020;
+  	  width: 100%;
+  	  font-size: 1.2em;
+  	  color: #000000;
+  	  text-align: center;
+	}
+	.shade-advanced a {
+	  text-decoration: none;
+	  color: #808080;
+	}
+	.shade-config {
+		padding:20px;
+		font-size: 1.5em;
+	}
+	.shade-name-edit {
+		font-size: 1em;
+	}
+	.shade-num-edit {
+		font-size: 1em;
+	}
+	.window-name-edit {
+		font-size: 1em;
+	}
+    </style>
+</head>
+<body onload="bodyIsLoaded()">
+
+<div>
+
+	<div id="shadesHeader"></div>
+    <!-- <div class="hd-com"><div class="hd-ico"><a href="commiss.htm"></a></div></div> -->
+	<div id="shadeList"></div>
+
+	<div id="shadeAdvanced" class="shade-advanced"><a href="#" onclick="toggleAdvanced()">Advanced</a></div>
+</div>
+
+</body>
+</html>

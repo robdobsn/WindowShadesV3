@@ -74,7 +74,7 @@ class ParticleCloud
           if (Utils::isTimeout(millis(), _isAliveLastMillis, ALIVE_EVENT_MILLIS))
           {
               if (Particle.connected())
-                  Particle.publish("Kerberus Alive", __appStatusStr);
+                  Particle.publish("Shades Control Alive", __appStatusStr);
               _isAliveLastMillis = millis();
           }
 

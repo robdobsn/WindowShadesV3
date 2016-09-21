@@ -33,6 +33,10 @@ char* restHelper_QueryStatus()
     retStr.concat(numShadesStr);
     retStr.concat("\", \"name\": \"");
     retStr.concat(shadeWindowName);
+    // WiFi IP Address
+    retStr.concat("\", \"wifiIP\": \"");
+    retStr.concat(pWiFiConn->localIPStr());
+    // Shades
     retStr.concat("\", \"shades\": [");
     // Add name for each shade
     for (int i = 0; i < numShades; i++)

@@ -36,8 +36,9 @@ char* restAPI_NetworkIP(int method, char*cmdStr, char* argStr, char* msgBuffer, 
 {
   // Get param
   String ipAddr = RdWebServer::getNthArgStr(argStr, 0);
+  ipAddr = ipAddr.trim();
   // Check for query
-  if (ipAddr.trim().length() == 0)
+  if (ipAddr.length() == 0)
   {
     String configSSID, configConnMethod, configIPAddr, configSubnetMask, configGatewayIP, configDNSIP;
     pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "SSID", configSSID);
@@ -78,6 +79,8 @@ char* restAPI_NetworkIP(int method, char*cmdStr, char* argStr, char* msgBuffer, 
     return restAPIHelpersBuffer;
   }
   // Store IP
+  if (!isdigit(ipAddr.charAt(0)))
+    ipAddr = "AUTO";
   bool rslt = pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_INTERNET, "IP", ipAddr);
   wifiIPAddr = ipAddr;
   // Get other params
@@ -87,8 +90,15 @@ char* restAPI_NetworkIP(int method, char*cmdStr, char* argStr, char* msgBuffer, 
   wifiGatewayIP = RdWebServer::getNthArgStr(argStr, 2);
   if (wifiGatewayIP.length() == 0)
   {
+    if (ipAddr.equalsIgnoreCase("auto"))
+    {
+      wifiGatewayIP = "";
+    }
+    else
+    {
     wifiGatewayIP = wifiIPAddr.substring(0,wifiIPAddr.lastIndexOf("."));
     wifiGatewayIP.concat(".1");
+  }
   }
   wifiDNSIP = RdWebServer::getNthArgStr(argStr, 3);
   if (wifiDNSIP.length() == 0)

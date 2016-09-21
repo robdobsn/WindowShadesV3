@@ -85,7 +85,7 @@ class WiFiConn
         WiFi.setCredentials(_ssid);
         debugStr += _ssid + " OPEN";
       }
-      if ((strlen(_ipAddress) == 0) || (strcmp(_ipAddress, "AUTO") == 0))
+      if ((_ipAddress.length() == 0) || (!isdigit(_ipAddress.charAt(0))))
       {
         debugStr += " DynamicIP";
         WiFi.useDynamicIP();
@@ -374,4 +374,3 @@ class WiFiConn
 };
 
 #endif
-

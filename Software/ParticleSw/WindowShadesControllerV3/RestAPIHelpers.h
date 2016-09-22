@@ -36,8 +36,25 @@ char* restHelper_QueryStatus()
     // WiFi IP Address
     retStr.concat("\", \"wifiIP\": \"");
     retStr.concat(pWiFiConn->localIPStr());
+    // Light sensors
+    const int lightSensorPins[] = { SENSE_A0, SENSE_A1, SENSE_A2 };
+    const int numPins = sizeof(lightSensorPins)/sizeof(int);
+    retStr.concat("\", \"sens\": [");
+    for (int i = 0; i < numPins; i++)
+    {
+        retStr.concat("{\"i\": \"");
+        retStr.concat(String::format("%d", i));
+        retStr.concat("\",\"v\":\"");
+        retStr.concat(String::format("%d", analogRead(lightSensorPins[i])));
+        retStr.concat("\"}");
+        if (i != numPins-1)
+        {
+            retStr.concat(",");
+        }
+    }
+    retStr.concat("]");
     // Shades
-    retStr.concat("\", \"shades\": [");
+    retStr.concat(", \"shades\": [");
     // Add name for each shade
     for (int i = 0; i < numShades; i++)
     {
@@ -90,4 +107,3 @@ char* restAPI_Help(int method, char*cmdStr, char* argStr, char* msgBuffer, int m
 {
   return "/blind/1..N/up|stop|down/pulse|on|off, Q, IW/SSID/PW/WPA2, IP/IPADDR, IP/IPADDR/MASK/GWAY/DNS";
 }
-

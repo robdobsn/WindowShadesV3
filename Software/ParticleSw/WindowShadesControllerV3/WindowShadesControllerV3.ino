@@ -58,6 +58,9 @@ const int HC595_SCK = D1;              //
 const int HC595_RCK = D2;              //
 const int LED_OP = D3;
 const int LED_ACT = D4;
+const int SENSE_A0 = A0;
+const int SENSE_A1 = A1;
+const int SENSE_A2 = A2;
 
 // Network SSID
 String wifiSSID = "";
@@ -138,8 +141,13 @@ void startWiFi()
 
 void setup()
 {
-  Serial.begin(115200);      // initialize serial communication
+  // Construct Window shades first - so outputs are reset
+  pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
 
+  // initialize serial communication
+  Serial.begin(115200);
+
+  // Short delay before message
   delay(1000);
   Serial.println("WindowShades V3.0 2016Sep17");
 
@@ -164,9 +172,6 @@ void setup()
   // Construct server and WiFi
   pWiFiConn = new WiFiConn();
   pWebServer = new RdWebServer(pWiFiConn);
-
-  // Door control
-  pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
 
   // Notifications handler
   pNotifyMgr = new NotifyMgr(restHelper_QueryStatus);

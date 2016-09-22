@@ -7,7 +7,7 @@ char* restAPI_RequestNotifications(int method, char*cmdStr, char* argStr, char* 
   String ipAndPort = RdWebServer::getNthArgStr(argStr, 0);
   // Register request
   int rslt = pNotifyMgr->addNotifyPath(ipAndPort);
-  return setResultStr(rslt >= 0);
+  return setResultStr(rslt != -1);
 }
 
 char* restAPI_WipeConfig(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
@@ -22,7 +22,7 @@ char* handleReceivedApiStr(char*cmdStr)
 {
     if (!pWebServer)
     return setResultStr(false);
-    
+
     // Get the command
     static char* emptyStr = "";
     String restCmd = RdWebServer::getNthArgStr(cmdStr, 0).toUpperCase();

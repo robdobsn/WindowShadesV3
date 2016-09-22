@@ -16,6 +16,9 @@
 //   Set shades:     /SHADECFG/#/name1/name2/name3/name4/name5/name6
 //                                        - # = number of shades, name1..6 = shade name
 //                                        - responds with same info as Query Status
+//
+//   Add Notify:     /NO/iii:ppp          - add a request for status notification on a specific ip address and port e.g. 192.168.0.76:25366
+//   Wipe config:    /WC/1234             - wipe config EEPROM
 
 // EEPROM Storage
 // SSID: 31 bytes

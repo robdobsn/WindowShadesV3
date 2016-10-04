@@ -152,7 +152,7 @@ void setup()
 
   // Short delay before message
   delay(1000);
-  Serial.println("WindowShades V3.0 2016Sep17");
+  Serial.println("WindowShades V3.0 2016Oct03");
 
   #ifdef DEBUG_CLEAR_EEPROM
     EEPROM.clear();

@@ -1,11 +1,24 @@
+// WiFi connection handler
+// Rob Dobson 2012-2016
+
+// Amended 2016-10-10
+// Improved handling of situations where:
+//   WiFi is offline when the device starts up - previously device would enter "smart setup" state and not connect
+//   when WiFi did eventually come online
+//   Also now cycles power on WiFi completely after a number of unsuccessful attempts
+
 #ifndef _WIFI_CONN_HEADER_
 #define _WIFI_CONN_HEADER_
 
+#include "string.h"
 #include "Utils.h"
 
-const int WIFI_CONN_TIMEOUT_SECS = 20;
+const int WIFI_CONN_TIMEOUT_SECS = 30;
+const int WIFI_RECONN_TIMEOUT_SECS = 3;
 const int WIFI_IP_TIMEOUT_SECS = 60;
 const int CLOUD_RESYNC_TIME_SECS = 24 * 60 * 60;
+const int WIFI_CONN_RECONNS_BEFORE_POWER_CYCLE = 120;
+const int WIFI_CONN_MIN_CONNECTED_SECS = 10;
 
 #define PARTICLE_CLOUD_CONNECT 1
 
@@ -19,6 +32,13 @@ const int CLOUD_RESYNC_TIME_SECS = 24 * 60 * 60;
 
 class WiFiConn
 {
+public:
+    enum ConnStates { CONN_STATE_NONE, CONN_STATE_POWER_CYCLE,
+        CONN_STATE_CONNECTING, CONN_STATE_WAIT_FOR_IP,
+        CONN_STATE_WIFI_CONNECTED, CONN_STATE_CLOUD_CONNECTED };
+
+    static const unsigned long INADDR_NONE = ((unsigned long) 0xffffffff);
+
   private:
     // Local IP Addr as string
     char _localIPStr[20];
@@ -27,10 +47,10 @@ class WiFiConn
     // MAC as string
     char _MACAddrStr[20];
     // States
-    enum ConnStates { CONN_STATE_NONE, CONN_STATE_CONNECTING, CONN_STATE_WAIT_FOR_IP, CONN_STATE_WIFI_CONNECTED, CONN_STATE_CLOUD_CONNECTED };
     ConnStates _connState;
     // Time current state entered
     unsigned long _stateEntryMillis;
+    int _reconnCount;
     // Config data
     String _ssid;
     String _password;
@@ -50,32 +70,33 @@ class WiFiConn
       _connState = CONN_STATE_NONE;
       _bCloudSyncTime = true;
       _lastCloudTimeSync = 0;
+        _reconnCount = 0;
     }
 
     void setState(ConnStates connState)
     {
       _connState = connState;
       _stateEntryMillis = millis();
+        WIFI_DEBUG("WiFiState %s", connStateStr());
     }
 
-    void doConnect()
+    void setupWifi(bool clearCredentialsFirst)
     {
-      // Turn off and on wifi
-      WiFi.off();
-      WiFi.on();
-      String debugStr = "WiFi::doConnect ";
+        if (clearCredentialsFirst)
+        WiFi.clearCredentials();
+        String debugStr = "setupWiFi ";
       // Connection method
-      if (strcmp(_method, "WEP") == 0)
+        if (strcasecmp(_method, "WEP") == 0)
       {
         WiFi.setCredentials(_ssid, _password, WEP);
         debugStr += _ssid + " WEP";
       }
-      else if (strcmp(_method, "WPA") == 0)
+        else if (strcasecmp(_method, "WPA") == 0)
       {
         WiFi.setCredentials(_ssid, _password, WPA);
         debugStr += _ssid + " WPA";
       }
-      else if (strcmp(_method, "WPA2") == 0)
+        else if (strcasecmp(_method, "WPA2") == 0)
       {
         WiFi.setCredentials(_ssid, _password, WPA2);
         debugStr += _ssid + " WPA2";
@@ -85,14 +106,14 @@ class WiFiConn
         WiFi.setCredentials(_ssid);
         debugStr += _ssid + " OPEN";
       }
-      if ((_ipAddress.length() == 0) || (!isdigit(_ipAddress.charAt(0))))
+        unsigned long ipAddr = WiFiConn::convIPStrToAddr(_ipAddress);
+        if (ipAddr == INADDR_NONE)
       {
         debugStr += " DynamicIP";
         WiFi.useDynamicIP();
       }
       else
       {
-        unsigned long ipAddr = WiFiConn::convIPStrToAddr(_ipAddress);
         unsigned long ipMask = WiFiConn::convIPStrToAddr(_wifiSubnetMask);
         unsigned long ipGate = WiFiConn::convIPStrToAddr(_wifiGatewayIP);
         unsigned long ipDNS = WiFiConn::convIPStrToAddr(_wifiDNSIP);
@@ -103,15 +124,19 @@ class WiFiConn
         debugStr += " Gateway " + IPAddress(ipGate);
         debugStr += " DNS " + IPAddress(ipDNS);
       }
-      Serial.println(debugStr);
+        WIFI_DEBUG("%s", debugStr.c_str());
+    }
+
+    void initialConnect()
+    {
+        // Turn on wifi
+        WiFi.on();
+        setupWifi(true);
       WiFi.connect();
       setState(CONN_STATE_CONNECTING);      
-
-      // Debug
-      WIFI_DEBUG("WiFi connecting");
     }
     
-    void connect(String& ssid, String& password, String& method, String& ipAddress, String& wifiSubnetMask, String& wifiGatewayIP, String& wifiDNSIP)
+    void setConnectParams(String& ssid, String& password, String& method, String& ipAddress, String& wifiSubnetMask, String& wifiGatewayIP, String& wifiDNSIP)
     {
       _ssid = ssid;
       _password = password;
@@ -120,47 +145,93 @@ class WiFiConn
       _wifiSubnetMask = wifiSubnetMask;
       _wifiGatewayIP = wifiGatewayIP;
       _wifiDNSIP = wifiDNSIP;
-      doConnect();
+    }
+
+    void reconnectStart()
+    {
+        setupWifi(false);
+        WiFi.listen(false);
+        WiFi.connect();
+        _reconnCount++;
+        setState(CONN_STATE_CONNECTING);
+    }
+
+    void powerCycleStart()
+    {
+        setupWifi(true);
+        WiFi.off();
+        setState(CONN_STATE_POWER_CYCLE);
+    }
+
+    void powerCycleEnd()
+    {
+        WiFi.on();
+        WiFi.connect();
+        setState(CONN_STATE_CONNECTING);
+    }
+
+    void changeConnectParams(String& ssid, String& password, String& method, String& ipAddress, String& wifiSubnetMask, String& wifiGatewayIP, String& wifiDNSIP)
+    {
+        setConnectParams(ssid, password, method, ipAddress, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
+        setupWifi(true);
+        WiFi.off();
+        delay(1000);
+        WiFi.connect();
+        setState(CONN_STATE_CONNECTING);
     }
 
     void service()
     {
       switch(_connState)
       {
+            case CONN_STATE_POWER_CYCLE:
+            {
+                if (Utils::isTimeout(millis(), _stateEntryMillis, WIFI_RECONN_TIMEOUT_SECS * 1000))
+                {
+                    WIFI_DEBUG("Power Cycle - turning on");
+                    powerCycleEnd();
+                }
+                break;
+            }
         case CONN_STATE_CONNECTING:
         {
           if (WiFi.ready() && (strlen(WiFi.SSID()) != 0))
           {
+                    WIFI_DEBUG("On SSID %s, waiting for IP address", WiFi.SSID());
             setState(CONN_STATE_WAIT_FOR_IP);
-            WIFI_DEBUG("On SSID %s, waiting for IP address", WiFi.SSID());
           }
           else if (Utils::isTimeout(millis(), _stateEntryMillis, WIFI_CONN_TIMEOUT_SECS * 1000))
           {
-            WiFi.connect();
-            setState(CONN_STATE_CONNECTING);
-            WIFI_DEBUG("Timed out connecting");
+                    WIFI_DEBUG("Timed out connecting - retry listening");
+                    if (_reconnCount > WIFI_CONN_RECONNS_BEFORE_POWER_CYCLE)
+                    {
+                        _reconnCount = 0;
+                        powerCycleStart();
+                        break;
+                    }
+                    reconnectStart();
           }
           break;
         }
         case CONN_STATE_WAIT_FOR_IP:
         {
           IPAddress localIP = WiFi.localIP();
-          if (localIP[0] != 0)
+                if (WiFi.ready())
           {
+                    WIFI_DEBUG("WiFiConnected %s", localIPStr());
             setState(CONN_STATE_WIFI_CONNECTED);  
-            WIFI_DEBUG("WiFiConnected %s", localIPStr());
 
             // Cloud connect if required
             #ifdef PARTICLE_CLOUD_CONNECT
             Particle.connect();
+                    WIFI_DEBUG("Connecting to particle cloud");
             #endif
             
           }
           else if (Utils::isTimeout(millis(), _stateEntryMillis, WIFI_IP_TIMEOUT_SECS * 1000))
           {
-            doConnect();
+                    WIFI_DEBUG("Timed out waiting for IP address");
             setState(CONN_STATE_CONNECTING);
-            WIFI_DEBUG("Timed out waiting for IP address");
           }
           break;
         }
@@ -168,14 +239,15 @@ class WiFiConn
         case CONN_STATE_CLOUD_CONNECTED:
         {
           IPAddress localIP = WiFi.localIP();
-          if ((!WiFi.ready()) || (localIP[0] == 0))
+                if (Utils::isTimeout(millis(), _stateEntryMillis, WIFI_CONN_MIN_CONNECTED_SECS * 1000))
+                {
+                    if (!WiFi.ready())
           {
-            WiFi.disconnect();
-            doConnect();
             setState(CONN_STATE_CONNECTING);
-            WIFI_DEBUG("Connection lost");
+                        WIFI_DEBUG("Connection lost - WiFi.Ready %d", WiFi.ready());
             break;
           }
+                }
 
           // Check for connection to cloud
           #ifdef PARTICLE_CLOUD_CONNECT
@@ -184,7 +256,7 @@ class WiFiConn
             if (_connState == CONN_STATE_WIFI_CONNECTED)
             {
               WIFI_DEBUG("Connected to Cloud");
-              _connState = CONN_STATE_CLOUD_CONNECTED;
+                        setState(CONN_STATE_CLOUD_CONNECTED);
             }
             
             // Give the particle system time
@@ -209,8 +281,11 @@ class WiFiConn
           {
             if (_connState == CONN_STATE_CLOUD_CONNECTED)
             {
+                        if (Utils::isTimeout(millis(), _stateEntryMillis, WIFI_CONN_MIN_CONNECTED_SECS * 1000))
+                        {
               WIFI_DEBUG("Lost connection to Cloud");
-              _connState = CONN_STATE_WIFI_CONNECTED;
+                            setState(CONN_STATE_WIFI_CONNECTED);
+                        }
             }
           }
 
@@ -226,6 +301,8 @@ class WiFiConn
       {
         case CONN_STATE_NONE:
           return "None";
+            case CONN_STATE_POWER_CYCLE:
+            return "PowerCycle";
         case CONN_STATE_CONNECTING:
           return "WaitConn";
         case CONN_STATE_WAIT_FOR_IP:
@@ -238,12 +315,34 @@ class WiFiConn
       return "Unknown";
     }
     
+    ConnStates getConnState()
+    {
+        return _connState;
+    }
+
+    const char connStateChar()
+    {
+        switch(_connState)
+        {
+            case CONN_STATE_NONE:
+            return 'N';
+            case CONN_STATE_POWER_CYCLE:
+            return '0';
+            case CONN_STATE_CONNECTING:
+            return 'W';
+            case CONN_STATE_WAIT_FOR_IP:
+            return 'I';
+            case CONN_STATE_WIFI_CONNECTED:
+            return 'C';
+            case CONN_STATE_CLOUD_CONNECTED:
+            return 'P';
+        }
+        return 'K';
+    }
+
     bool isConnected()
     {
-      if (WiFi.connecting())
-        return false;
-      IPAddress localIP = WiFi.localIP();
-      return (localIP[0] != 0);
+        return _connState == CONN_STATE_WIFI_CONNECTED || _connState == CONN_STATE_CLOUD_CONNECTED;
     }
 
     IPAddress localIP()
@@ -283,8 +382,6 @@ class WiFiConn
     {
       return WiFi.RSSI();
     }
-
-    #define INADDR_NONE ((unsigned long) 0xffffffff)
 
     // Following code from Unix sources
     static unsigned long convIPStrToAddr(String& inStr)

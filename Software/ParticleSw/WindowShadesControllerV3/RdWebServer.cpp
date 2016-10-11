@@ -5,7 +5,7 @@
 #include "WiFiConn.h"
 #include "RdWebServer.h"
 
-#define RD_DEBUG_LEVEL 2
+#define RD_DEBUG_LEVEL 4
 #define RD_DEBUG_FNAME "RdWebServer.cpp"
 #include "RdDebugLevel.h"
 
@@ -47,6 +47,22 @@ const char* RdWebServer::connStateStr()
   return "Unknown";
 }
 
+char RdWebServer::connStateChar()
+{
+    switch(_webServerState)
+    {
+        case WEB_SERVER_OFFLINE:
+        return '0';
+        case WEB_SERVER_WAIT_CONNECT:
+        return 'W';
+        case WEB_SERVER_CONNECTED_BUT_NO_CLIENT:
+        return 'C';
+        case WEB_SERVER_HAS_CLIENT:
+        return 'H';
+    }
+    return 'K';
+}
+
 void RdWebServer::setState(WebServerState newState)
 {
     _webServerState = newState;
@@ -59,15 +75,31 @@ void RdWebServer::start(int port)
   // Check if already started
   if (_pTCPServer)
   {
-    // Check if the port hasn't changed - if so nothing to do
-    if (_TCPPort == port)
-      return;
-    // Delete previous server
-    delete _pTCPServer;
+        // // Check if the port hasn't changed - if so nothing to do
+        // if (_TCPPort == port)
+        //     return;
+        stop();
   }
   // Create server and begin
   _pTCPServer = new TCPServer(port);
   setState(WEB_SERVER_WAIT_CONNECT);
+}
+
+void RdWebServer::stop()
+{
+    if (_pTCPServer)
+    {
+        _pTCPServer->stop();
+        // Delete previous server
+        delete _pTCPServer;
+        _pTCPServer = NULL;
+    }
+    setState(WEB_SERVER_OFFLINE);
+}
+
+void RdWebServer::restart()
+{
+    start(_TCPPort);
 }
 
 //////////////////////////////////////
@@ -85,6 +117,7 @@ void RdWebServer::service()
       if (_pWiFiConn->isConnected())
       {
         _pTCPServer->begin();
+                Serial.println("****************** TCP Server Begin");
         setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
       }
       break;
@@ -94,9 +127,8 @@ void RdWebServer::service()
       // Check for WiFi disconnect
       if (!_pWiFiConn->isConnected())
       {
-        _pTCPServer->stop();
         RD_DBG("Web Server was connected but WiFi lost ...");
-        setState(WEB_SERVER_WAIT_CONNECT);
+                restart();
         break;
       }
       // Check for a client
@@ -122,8 +154,7 @@ void RdWebServer::service()
       if (!_pWiFiConn->isConnected())
       {
         _TCPClient.stop();
-        _pTCPServer->stop();
-        setState(WEB_SERVER_WAIT_CONNECT);
+                restart();
         RD_DBG("Web Server had client but WiFi lost -> Wait Connect");
         break;
       }

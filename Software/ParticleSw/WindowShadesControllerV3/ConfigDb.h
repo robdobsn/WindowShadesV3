@@ -1,3 +1,6 @@
+// Config DB in Particle EEPROM
+// Rob Dobson 2012-2016
+
 #ifndef _CONFIG_DB_H_
 #define _CONFIG_DB_H_
 
@@ -32,6 +35,7 @@ class ConfigDb
 
   public:
     ConfigDb(int eepromBaseLocation, int maxDataLen);
+    void readFromEEPROM();
     int getNumRecs();
     int getRecNumStrs(int startPos);
     bool getRecStrByIdx(int recIdx, int strIdx, String& recStr);

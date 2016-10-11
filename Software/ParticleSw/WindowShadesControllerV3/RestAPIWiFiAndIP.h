@@ -1,4 +1,5 @@
 // Helper functions to implement WiFi and IP REST API calls
+// Rob Dobson 2012-2016
 
 char* restAPI_Wifi(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
                 int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
@@ -7,6 +8,7 @@ char* restAPI_Wifi(int method, char*cmdStr, char* argStr, char* msgBuffer, int m
     // Check for clear stored SSIDs
     if (RdWebServer::getNumArgs(argStr) == 0)
     {
+        Serial.println("Cleared WiFi Credentials");
         WiFi.clearCredentials();
         return setResultStr(rslt);
     }
@@ -27,7 +29,7 @@ char* restAPI_Wifi(int method, char*cmdStr, char* argStr, char* msgBuffer, int m
     else
         rslt &= pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_INTERNET, "METH", wifiConnMethod);
     // Use the data to connect
-    pWiFiConn->connect(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
+    pWiFiConn->changeConnectParams(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
     return setResultStr(rslt);
 }
 
@@ -108,6 +110,6 @@ char* restAPI_NetworkIP(int method, char*cmdStr, char* argStr, char* msgBuffer, 
   rslt = rslt & pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_INTERNET, "GATE", wifiGatewayIP);
   rslt = rslt & pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_INTERNET, "DNS", wifiDNSIP);
   // reconnect WiFi
-  pWiFiConn->connect(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
+    pWiFiConn->changeConnectParams(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
   return setResultStr(rslt);
 }

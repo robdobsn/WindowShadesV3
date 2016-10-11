@@ -1,3 +1,6 @@
+// Web server resources
+// Rob Dobson 2012-2016
+
 #ifndef _RD_WEB_SERVER_RESOURCES_H_
 #define _RD_WEB_SERVER_RESOURCES_H_
 

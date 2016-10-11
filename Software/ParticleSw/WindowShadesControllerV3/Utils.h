@@ -1,3 +1,5 @@
+// Utils
+// Rob Dobson 2012-2016
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -31,4 +33,3 @@ class Utils
 };
 
 #endif
-

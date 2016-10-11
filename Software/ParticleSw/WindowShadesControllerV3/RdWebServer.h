@@ -1,3 +1,6 @@
+// Web Server
+// Rob Dobson 2012-2016
+
 #ifndef _RD_WEB_SERVER_
 #define _RD_WEB_SERVER_
 
@@ -103,8 +106,11 @@ class RdWebServer
     virtual ~RdWebServer();
 
     void start(int port);
+    void stop();
+    void restart();
     void service();
     const char* connStateStr();
+    char connStateChar();
     int connState() { return _webServerState; };
 
     // Add a command to the web server

@@ -13,7 +13,7 @@ const int MAX_API_STR_LEN = 1000;
 const unsigned long ALIVE_EVENT_MILLIS = 30000;
 
 // Status update rate
-const unsigned long STATUS_UPDATE_MILLIS = 500;
+const unsigned long STATUS_UPDATE_MILLIS = 5000;
 
 static ParticleRxCallbackType __pParticleRxCallback = NULL;
 static ParticleStatusCallbackType __queryStatusFn = NULL;
@@ -86,6 +86,7 @@ class ParticleCloud
               if (!__appStatusStr.equals(statusStr))
               {
                   Serial.println("Particle var status has changed");
+                  Serial.println(statusStr);
                   __appStatusStr = statusStr;
               }
               _statusUpdateLastMillis = millis();

@@ -139,7 +139,10 @@ void startWiFi()
   pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "GATE", wifiGatewayIP);
   pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "DNS", wifiDNSIP);
   if (pWiFiConn)
-    pWiFiConn->connect(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
+  {
+      pWiFiConn->setConnectParams(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
+      pWiFiConn->initialConnect();
+  }
 }
 
 void setup()

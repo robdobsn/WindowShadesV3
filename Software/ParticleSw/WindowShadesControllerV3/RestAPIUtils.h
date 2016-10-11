@@ -1,4 +1,5 @@
 // Helper functions to implement general utility REST API calls
+// Rob Dobson 2012-2016
 
 char* restAPI_RequestNotifications(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
                 int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
@@ -14,6 +15,7 @@ char* restAPI_WipeConfig(int method, char*cmdStr, char* argStr, char* msgBuffer,
                 int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
 {
     EEPROM.clear();
+    pConfigDb->readFromEEPROM();
     Serial.println("EEPROM Cleared");
     return setResultStr(true);
 }

@@ -4,7 +4,7 @@
 #include "application.h"
 #include "ConfigDb.h"
 
-#define RD_DEBUG_LEVEL 2
+#define RD_DEBUG_LEVEL 4
 #define RD_DEBUG_FNAME "ConfigDb.cpp"
 #include "RdDebugLevel.h"
 
@@ -25,12 +25,16 @@ ConfigDb::ConfigDb(int eepromBaseLocation, int maxDataLen)
 {
   _eepromBaseLocation = eepromBaseLocation;
   _maxDataLen = maxDataLen;
-  
+    readFromEEPROM();
+}
+
+void ConfigDb::readFromEEPROM()
+{
   // Check EEPROM has been initialised - if not just start with an empty string
   if (EEPROM.read(_eepromBaseLocation) == 0xff)
   {
     _dataStr = "";
-    RD_DBG("EEPROM uninitialised, _dataStr empty");
+        RD_INFO("EEPROM uninitialised, _dataStr empty");
     return;
   }
 
@@ -56,7 +60,7 @@ ConfigDb::ConfigDb(int eepromBaseLocation, int maxDataLen)
     _dataStr.concat(ch);
   }
 
-  RD_DBG("Read config str: %s", _dataStr.c_str());
+    RD_INFO("Read config str: %s", _dataStr.c_str());
 }
 
 bool ConfigDb::writeToEEPROM()
@@ -67,7 +71,7 @@ bool ConfigDb::writeToEEPROM()
   int dataStrLen = _dataStr.length();
   if (dataStrLen >= _maxDataLen)
     dataStrLen = _maxDataLen-1;
-  
+
   // Write the current value of the string to EEPROM
   for (int chIdx = 0; chIdx < dataStrLen; chIdx++)
   {
@@ -182,7 +186,7 @@ bool ConfigDb::getRecStrByIdx(int recIdx, int strIdx, String& recStr)
   return true;
 }
 
-// Extract a value 
+// Extract a value
 int ConfigDb::extractValByName(int startPos, String valName, String& rtnStr)
 {
   rtnStr = "";
@@ -331,7 +335,7 @@ bool ConfigDb::recStrDone(String& recStr)
 bool ConfigDb::changeOrAppendRec(int recIdx, String& newRec)
 {
   RD_DBG("changeOrAppendRec %d", recIdx);
-  
+
   // Check for append
   bool bAppend = false;
   int locPos = _dataStr.length();
@@ -350,14 +354,14 @@ bool ConfigDb::changeOrAppendRec(int recIdx, String& newRec)
       return false;
     }
   }
-  
+
   // Get the _dataStr up to this point
   String headStr = _dataStr.substring(0, locPos);
   RD_DBG("changeOrAppendRec: found rec at %d, headStr=%s", locPos, headStr.c_str());
 
   // Get the _dataStr after the changing record
   String tailStr = "";
-  
+
   // Find the location of the next record
   if (!bAppend)
   {
@@ -367,7 +371,7 @@ bool ConfigDb::changeOrAppendRec(int recIdx, String& newRec)
       tailStr = _dataStr.substring(locPos);
     }
   }
-    
+
   // Reconstruct the final string
   _dataStr = headStr + newRec + tailStr;
   RD_DBG("changeOrAppendRec: new _dataStr=%s", _dataStr.c_str());
@@ -378,5 +382,3 @@ bool ConfigDb::changeOrAppendRec(int recIdx, String& newRec)
   // Ok
   return true;
 }
-
-

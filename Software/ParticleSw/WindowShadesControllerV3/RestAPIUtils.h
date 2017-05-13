@@ -1,54 +1,40 @@
 // Helper functions to implement general utility REST API calls
 // Rob Dobson 2012-2016
 
-char* restAPI_RequestNotifications(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
-                int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
+// Rest API Implementations
+const int MAX_REST_API_RETURN_LEN = 1000;
+static char restAPIHelpersBuffer[MAX_REST_API_RETURN_LEN];
+char* restAPIsetResultStr(bool rslt)
 {
-  // Get IP address and port for notifications
-  String ipAndPort = RdWebServer::getNthArgStr(argStr, 0);
-  // Register request
-  int rslt = pNotifyMgr->addNotifyPath(ipAndPort);
-  return setResultStr(rslt != -1);
+    sprintf(restAPIHelpersBuffer, "{ \"rslt\": \"%s\" }", rslt? "ok" : "fail");
+    return restAPIHelpersBuffer;
 }
 
-char* restAPI_WipeConfig(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
-                int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
-{
-    EEPROM.clear();
-    pConfigDb->readFromEEPROM();
-    Serial.println("EEPROM Cleared");
-    return setResultStr(true);
-}
+// char *restAPI_RequestNotifications(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
+//                                    int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+// {
+//     // Get IP address and port for notifications
+//     String ipAndPort = RdWebServer::getNthArgStr(argStr, 0);
+//     // Register request
+//     int rslt = pNotifyMgr->addNotifyPath(ipAndPort);
+//
+//     return setResultStr(rslt != -1);
+// }
+//
+//
+// char *restAPI_WipeConfig(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
+//                          int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+// {
+//     EEPROM.clear();
+//     pConfigDb->readFromEEPROM();
+//     Serial.println("EEPROM Cleared");
+//     return setResultStr(true);
+// }
 
-char* handleReceivedApiStr(char*cmdStr)
+char *handleReceivedApiStr(const char *requestStr)
 {
-    if (!pWebServer)
-    return setResultStr(false);
-
-    // Get the command
-    static char* emptyStr = "";
-    String restCmd = RdWebServer::getNthArgStr(cmdStr, 0).toUpperCase();
-    char* argStart = strstr(cmdStr, "/");
-    if (argStart == NULL)
-    argStart = emptyStr;
-    else
-    argStart++;
-    Serial.printlnf("CMD: %s", cmdStr);
-    // Check against valid commands
-    int numWebCmds = pWebServer->getNumWebCommands();
-    for (int i = 0; i < numWebCmds; i++)
-    {
-     CmdCallbackType callback;
-     int cmdType;
-     char* pWebCmdStr = pWebServer->getNthWebCmd(i, cmdType, callback);
-     if (!pWebCmdStr)
-         continue;
-     if (cmdType != RdWebServerCmdDef::CMD_CALLBACK)
-         continue;
-     if (restCmd.equalsIgnoreCase(pWebCmdStr))
-     {
-         return callback(0, NULL, argStart, NULL, 0, 0, NULL, 0, 0);
-     }
-    }
-    return setResultStr(false);
+    char* rsltStr = restAPIEndpoints.handleApiRequest(requestStr);
+    if (strlen(rsltStr) == 0)
+        return restAPIsetResultStr(false);
+    return rsltStr;
 }

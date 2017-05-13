@@ -1,23 +1,20 @@
 // Web server resources
-// Rob Dobson 2012-2016
+// Rob Dobson 2012-2017
 
-#ifndef _RD_WEB_SERVER_RESOURCES_H_
-#define _RD_WEB_SERVER_RESOURCES_H_
+#pragma once
 
 class RdWebServerResourceDescr
 {
-  public:
-    RdWebServerResourceDescr(const char* pResId, const char* pMimeType, const unsigned char* pData, int dataLen)
+public:
+    RdWebServerResourceDescr(const char *pResId, const char *pMimeType, const unsigned char *pData, int dataLen)
     {
-      _pResId = pResId;
-      _pMimeType = pMimeType;
-      _pData = pData;
-      _dataLen = dataLen;
+        _pResId    = pResId;
+        _pMimeType = pMimeType;
+        _pData     = pData;
+        _dataLen   = dataLen;
     }
-    const char *_pResId;
-    const char *_pMimeType;
-    const unsigned char* _pData;
-    int _dataLen;
+    const char          *_pResId;
+    const char          *_pMimeType;
+    const unsigned char *_pData;
+    int                 _dataLen;
 };
-
-#endif

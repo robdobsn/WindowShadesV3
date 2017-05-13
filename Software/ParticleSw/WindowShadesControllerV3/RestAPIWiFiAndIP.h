@@ -8,7 +8,7 @@ char* restAPI_Wifi(int method, char*cmdStr, char* argStr, char* msgBuffer, int m
     // Check for clear stored SSIDs
     if (RdWebServer::getNumArgs(argStr) == 0)
     {
-        Serial.println("Cleared WiFi Credentials");
+        Log.info("Cleared WiFi Credentials");
         WiFi.clearCredentials();
         return setResultStr(rslt);
     }

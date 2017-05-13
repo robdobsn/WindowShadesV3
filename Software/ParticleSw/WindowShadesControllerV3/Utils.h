@@ -1,35 +1,38 @@
 // Utils
-// Rob Dobson 2012-2016
+// Rob Dobson 2012-2017
 
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 
 #include "limits.h"
 
 class Utils
 {
-  public:
+public:
     static bool isTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
     {
-      if (curTime >= lastTime)
-      {
-        return (curTime > lastTime + maxDuration);
-      }
-      return (ULONG_MAX - (lastTime-curTime) > maxDuration);
+        if (curTime >= lastTime)
+        {
+            return(curTime > lastTime + maxDuration);
+        }
+        return(ULONG_MAX - (lastTime - curTime) > maxDuration);
     }
+
+
     static int timeToTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
     {
-      if (curTime >= lastTime)
-      {
-        if (curTime > lastTime + maxDuration)
-          return 0;
-        return maxDuration - (curTime - lastTime);
-      }
-      if (ULONG_MAX - (lastTime-curTime) > maxDuration)
-        return 0;
-      return maxDuration - (ULONG_MAX - (lastTime-curTime));
+        if (curTime >= lastTime)
+        {
+            if (curTime > lastTime + maxDuration)
+            {
+                return 0;
+            }
+            return maxDuration - (curTime - lastTime);
+        }
+        if (ULONG_MAX - (lastTime - curTime) > maxDuration)
+        {
+            return 0;
+        }
+        return maxDuration - (ULONG_MAX - (lastTime - curTime));
     }
 
 };
-
-#endif

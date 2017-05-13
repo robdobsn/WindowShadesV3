@@ -1,4 +1,4 @@
-// Window Shades V3
+// Window Shades V3.1
 // Rob Dobson 2012-2017
 
 // API
@@ -33,13 +33,15 @@ SerialLogHandler logHandler(LOG_LEVEL_TRACE);
 #include "Utils.h"
 Utils _utils;
 
-// Configuration
+// Config
 #include "ConfigEEPROM.h"
-
-// Config and location
 ConfigEEPROM configEEPROM;
 static const char* EEPROM_CONFIG_LOCATION_STR =
     "{\"base\": 0, \"maxLen\": 1000}";
+
+// ParticleCloud support
+#include "ParticleCloud.h"
+ParticleCloud* pParticleCloud = NULL;
 
 // API Endpoints
 #include "RestAPIEndpoints.h"
@@ -49,29 +51,15 @@ RestAPIEndpoints restAPIEndpoints;
 #include "RdWebServer.h"
 const int webServerPort = 80;
 RdWebServer* pWebServer = NULL;
-
-// ParticleCloud support
-#include "ParticleCloud.h"
-ParticleCloud* pParticleCloud = NULL;
-
-// API Support (for web, etc)
-#include "RestAPIUtils.h"
-#include "RestAPIHelpers.h"
-
-/*
 #include "GenResources.h"
-*/
 
-/*
-#include "WindowShades.h"
-#include "Utils.h"
+// Notifications
 #include "NotifyMgr.h"
+NotifyMgr* pNotifyMgr = NULL;
 
-*/
-/*
-const bool CLOUD_SERVICE_REQUIRED = false;
-
-// Hardware definitions
+// Window shades
+#include "WindowShades.h"
+WindowShades* pWindowShades = NULL;
 const int HC595_SER = D0;              // 75HC595 pins
 const int HC595_SCK = D1;              //
 const int HC595_RCK = D2;              //
@@ -81,57 +69,41 @@ const int SENSE_A0 = A0;
 const int SENSE_A1 = A1;
 const int SENSE_A2 = A2;
 
-// WiFi connection and server
-WiFiConn* pWiFiConn = NULL;
-*/
-
-/*
-
-// Doors
-WindowShades* pWindowShades = NULL;
-
-// Notifications
-NotifyMgr* pNotifyMgr = NULL;
-
-#include "RestAPIWiFiAndIP.h"
+// API Support (for web, etc)
 #include "RestAPIUtils.h"
+#include "RestAPIHelpers.h"
+#include "RestAPIWiFiAndIP.h"
 
-void startWiFi()
+
+void setupRestAPIEndpoints()
 {
-    // Get internet config values
-    String configSSID, configPassword, configConnMethod, configIPAddr;
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "SSID", configSSID);
-    if (configSSID.length() != 0)
-    wifiSSID = configSSID;
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "PW", configPassword);
-    if (configPassword.length() != 0)
-    wifiPassword = configPassword;
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "METH", configConnMethod);
-    if (configConnMethod.length() > 0)
-    wifiConnMethod = configConnMethod;
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "IP", configIPAddr);
-    if (configIPAddr.length() > 0)
-    wifiIPAddr = configIPAddr;
-    Serial.print("Got IP Addr from config");
-    Serial.print(configIPAddr);
-    Serial.print(", wifiIP: ");
-    Serial.println(wifiIPAddr);
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "MASK", wifiSubnetMask);
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "GATE", wifiGatewayIP);
-    pConfigDb->getRecValByName(CONFIG_RECIDX_FOR_INTERNET, "DNS", wifiDNSIP);
-    if (pWiFiConn)
-    {
-        pWiFiConn->setConnectParams(wifiSSID, wifiPassword, wifiConnMethod, wifiIPAddr, wifiSubnetMask, wifiGatewayIP, wifiDNSIP);
-        pWiFiConn->initialConnect();
-    }
+
+    // Add network management REST API commands
+    restAPIEndpoints.addEndpoint("IW", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Wifi);
+    restAPIEndpoints.addEndpoint("IP", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_NetworkIP);
+
+    // Query
+    restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_QueryStatus);
+
+    // Add window shades REST API commands to web server
+    restAPIEndpoints.addEndpoint("BLIND", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesControl);
+    restAPIEndpoints.addEndpoint("SHADECFG", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesConfig);
+
+    // Add notifications
+    restAPIEndpoints.addEndpoint("NO", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_RequestNotifications);
+
+    // Reset device
+    restAPIEndpoints.addEndpoint("RESET", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Reset);
+
+    // Wipe config
+    restAPIEndpoints.addEndpoint("WIPEALL", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WipeConfig);
 }
-*/
 
 void setup()
 {
-/*    // Construct Window shades first - so outputs are reset
+    // Construct Window shades first - so outputs are reset
     pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
-*/
+
     // Short delay before message
     delay(5000);
     Log.info("WindowShades V3.1 2017/05/12");
@@ -152,59 +124,41 @@ void setup()
     pParticleCloud = new ParticleCloud(handleReceivedApiStr, restHelper_QueryStatus);
     pParticleCloud->RegisterVariables();
 
-/*
-    // Construct server and WiFi
-    pWiFiConn = new WiFiConn();
-    pWebServer = new RdWebServer(pWiFiConn);
+    // Construct web server
+    pWebServer = new RdWebServer();
 
-    // Notifications handler
-    pNotifyMgr = new NotifyMgr(restHelper_QueryStatus);
-
-    // Start WiFi
-    startWiFi();
+    // Setup REST API endpoints
+    setupRestAPIEndpoints();
 
     // Configure web server
     if (pWebServer)
     {
         // Add resources to web server
         pWebServer->addStaticResources(genResources, genResourcesCount);
-
-        // Add network management REST API commands to web server
-        pWebServer->addCommand("IW", RdWebServerCmdDef::CMD_CALLBACK, restAPI_Wifi);
-        pWebServer->addCommand("IP", RdWebServerCmdDef::CMD_CALLBACK, restAPI_NetworkIP);
-
-        // Query
-        pWebServer->addCommand("Q", RdWebServerCmdDef::CMD_CALLBACK, restAPI_QueryStatus);
-
-        // Add window shades REST API commands to web server
-        pWebServer->addCommand("BLIND", RdWebServerCmdDef::CMD_CALLBACK, restAPI_ShadesControl);
-        pWebServer->addCommand("SHADECFG", RdWebServerCmdDef::CMD_CALLBACK, restAPI_ShadesConfig);
-
-        // Add notifications
-        pWebServer->addCommand("NO", RdWebServerCmdDef::CMD_CALLBACK, restAPI_RequestNotifications);
-
-        // Wipe config
-        pWebServer->addCommand("WC", RdWebServerCmdDef::CMD_CALLBACK, restAPI_WipeConfig);
-
+        pWebServer->addRestAPIEndpoints(&restAPIEndpoints);
         // Start the web server
         pWebServer->start(webServerPort);
     }
+
+    // Notifications handler
+    pNotifyMgr = new NotifyMgr();
+    /*pNotifyMgr->addNotifyType(1, restHelper_ReportHealth,
+                        restHelper_ReportHealthHash, NotifyMgr::NOTIFY_POST);*/
 
     // Status LEDs
     pinMode(LED_OP, OUTPUT);
     pinMode(LED_ACT, OUTPUT);
 
-*/
 }
 
 // Timing of the loop - used to determine if blocking/slow processes are delaying the loop iteration
 const int loopTimeAvgWinLen = 50;
-int loopTimeAvgWin[loopTimeAvgWinLen];
+int loopTimeAvgWinUs[loopTimeAvgWinLen];
 int loopTimeAvgWinHead = 0;
 int loopTimeAvgWinCount = 0;
-unsigned long loopTimeAvgWinSum = 0;
-unsigned long lastLoopStartMicros = 0;
-unsigned long lastDebugLoopTime = 0;
+unsigned long loopTimeSumUs = 0;
+unsigned long lastLoopStartUs = 0;
+unsigned long lastDebugLoopMs = 0;
 
 void loop()
 {
@@ -213,41 +167,37 @@ void loop()
         pParticleCloud->Service(false);
 
     // Monitor how long it takes to go around loop
-    if (lastLoopStartMicros != 0)
+    if (lastLoopStartUs != 0)
     {
-        unsigned long loopTime = micros() - lastLoopStartMicros;
-        if (loopTime > 0)
+        unsigned long loopTimeUs = micros() - lastLoopStartUs;
+        if (loopTimeUs > 0)
         {
             if (loopTimeAvgWinCount == loopTimeAvgWinLen)
             {
-                int oldVal = loopTimeAvgWin[loopTimeAvgWinHead];
-                loopTimeAvgWinSum -= oldVal;
+                int oldVal = loopTimeAvgWinUs[loopTimeAvgWinHead];
+                loopTimeSumUs -= oldVal;
             }
-            loopTimeAvgWin[loopTimeAvgWinHead++] = loopTime;
+            loopTimeAvgWinUs[loopTimeAvgWinHead++] = loopTimeUs;
             if (loopTimeAvgWinHead >= loopTimeAvgWinLen)
                 loopTimeAvgWinHead = 0;
             if (loopTimeAvgWinCount < loopTimeAvgWinLen)
                 loopTimeAvgWinCount++;
-            loopTimeAvgWinSum += loopTime;
+            loopTimeSumUs += loopTimeUs;
         }
     }
-    lastLoopStartMicros = micros();
-    if (millis() > lastDebugLoopTime + 10000)
+    lastLoopStartUs = micros();
+    if (millis() > lastDebugLoopMs + 10000)
     {
         if (loopTimeAvgWinLen > 0)
         {
-            Log.info("Avg loop time %0.6f (val %lu)", 1.0 * loopTimeAvgWinSum / loopTimeAvgWinLen, lastLoopStartMicros);
+            Log.info("Avg loop %0.2fuS", 1.0 * loopTimeSumUs / loopTimeAvgWinLen);
         }
         else
         {
             Log.trace("No avg loop time yet");
         }
-        lastDebugLoopTime = millis();
+        lastDebugLoopMs = millis();
     }
-
-/*    // Service the WiFi connection
-    if (pWiFiConn)
-        pWiFiConn->service();
 
     // Service the web server
     if (pWebServer)
@@ -265,5 +215,4 @@ void loop()
     // Service notifications
     if (pNotifyMgr)
         pNotifyMgr->service();
-        */
 }

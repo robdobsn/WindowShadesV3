@@ -5,13 +5,12 @@
 #include "RdWebServer.h"
 #include "Utils.h"
 
-RdWebServer::RdWebServer(WiFiConn *pWiFiConn)
+RdWebServer::RdWebServer()
 {
     _pTCPServer              = NULL;
     _TCPPort                 = 80;
     _webServerState          = WEB_SERVER_OFFLINE;
     _webServerStateEntryMs   = 0;
-    _pWiFiConn               = pWiFiConn;
     _httpReqBufPos           = 0;
     _charsOnHttpReqLine      = 0;
     _numWebServerResources   = 0;

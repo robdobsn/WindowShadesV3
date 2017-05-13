@@ -131,6 +131,34 @@ public:
         return _localIPStr;
     }
 
+    const char* BSSIDStr()
+    {
+        byte bssid[6];
+        WiFi.BSSID(bssid);
+        sprintf(_BSSIDStr, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+        return _BSSIDStr;
+    }
+
+    const char* MACAddrStr()
+    {
+        byte macaddr[6];
+        WiFi.macAddress(macaddr);
+        sprintf(_MACAddrStr, "%02X:%02X:%02X:%02X:%02X:%02X", macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
+        return _MACAddrStr;
+    }    
+
+    const char* connStateStr()
+    {
+        if (WiFi.listening())
+            return "ListenMode";
+        if (Particle.connected())
+            return "CloudConn";
+        if (WiFi.ready())
+            return "WiFiReady";
+        if (WiFi.connecting())
+            return "Connecting";
+        return "None";
+    }
 
 private:
     // Last time an "Alive" event was sent to the particle cloud
@@ -145,4 +173,8 @@ private:
 
     // Local IP Addr as string
     char _localIPStr[20];
+    // BSSID as string
+    char _BSSIDStr[40];
+    // MAC as string
+    char _MACAddrStr[20];
 };

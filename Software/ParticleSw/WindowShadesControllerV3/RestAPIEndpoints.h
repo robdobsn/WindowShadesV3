@@ -145,8 +145,6 @@ public:
         return emptyStr;
     }
 
-
-private:
     // Form a string from a char buffer with a fixed length
     static void formStringFromCharBuf(String& outStr, const char *pStr, int len)
     {

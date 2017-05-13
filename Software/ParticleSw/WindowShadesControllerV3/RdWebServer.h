@@ -6,8 +6,6 @@
 #include "RdWebServerResources.h"
 #include "RestAPIEndpoints.h"
 
-class WiFiConn;
-
 class RdWebServer
 {
 private:
@@ -30,9 +28,6 @@ private:
 private:
     // Port
     int _TCPPort;
-
-    // WiFi connection
-    WiFiConn *_pWiFiConn;
 
     // TCP server and client
     TCPServer *_pTCPServer;
@@ -81,7 +76,7 @@ private:
     void setState(WebServerState newState);
 
 public:
-    RdWebServer(WiFiConn * pWiFiConn);
+    RdWebServer();
     virtual ~RdWebServer();
 
     void start(int port);

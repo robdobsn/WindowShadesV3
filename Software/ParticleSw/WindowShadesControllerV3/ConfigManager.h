@@ -136,6 +136,17 @@ public:
                          _pDataStrJSON);
     }
 
+    // Get a string from the JSON with minimal parameters
+    String getString(const char *dataPath,
+                     const char *defaultValue)
+    {
+        bool        isValid = false;
+        jsmnrtype_t objType = JSMNR_UNDEFINED;
+        int         objSize = 0;
+        return getString(dataPath, defaultValue, isValid, objType, objSize,
+                         _pDataStrJSON);
+    }
+
 
     static double getDouble(const char *dataPath,
                             double defaultValue, bool& isValid,

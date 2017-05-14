@@ -11,9 +11,9 @@ char *restHelper_QueryStatus()
     // Get information on status
     String shadeWindowName = configEEPROM.getString("WINNAME", "");
     int numShades = configEEPROM.getLong("NUMSHADES", 0);
-    if (numShades < 0)
+    if (numShades < 1)
     {
-        numShades = 0;
+        numShades = 1;
     }
     if (numShades > pWindowShades->getMaxNumShades())
     {
@@ -100,9 +100,14 @@ char *restAPI_ShadesControl(int method, char *cmdStr, char *argStr, char *msgBuf
 char *restAPI_ShadesConfig(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
                            int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
+    String configStr = "{";
+    // Window name
     String shadeWindowName = RestAPIEndpoints::getNthArgStr(argStr, 0);
+    configStr.concat("\"WINNAME\":\"");
+    configStr.concat(shadeWindowName);
+    configStr.concat("\"");
 
-//    pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_SHADES, "WINNAME", shadeWindowName);
+    // Number of shades
     String numShadesStr = RestAPIEndpoints::getNthArgStr(argStr, 1);
     int    numShades    = numShadesStr.toInt();
     if (numShades < 1)
@@ -114,11 +119,29 @@ char *restAPI_ShadesConfig(int method, char *cmdStr, char *argStr, char *msgBuff
         numShades = pWindowShades->getMaxNumShades();
     }
     numShadesStr = String::format("%d", numShades);
-//    pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_SHADES, "NUMSHADES", numShadesStr);
+    configStr.concat(",\"NUMSHADES\":\"");
+    configStr.concat(numShadesStr);
+    configStr.concat("\"");
+
+    // Shade names
     for (int i = 0; i < numShades; i++)
     {
         String shadeName = RestAPIEndpoints::getNthArgStr(argStr, 2 + i);
-//        pConfigDb->setRecValByName(CONFIG_RECIDX_FOR_SHADES, String::format("SHADENAME%d", i), shadeName);
+        configStr.concat(",\"SHADENAME");
+        configStr.concat(i);
+        configStr.concat("\":\"");
+        configStr.concat(shadeName);
+        configStr.concat("\"");
     }
+    configStr.concat("}");
+
+    // Debug
+    Log.trace("Writing config %s", configStr.c_str());
+
+    // Store in config
+    configEEPROM.setConfigData(configStr.c_str());
+    configEEPROM.writeToEEPROM();
+
+    // Return the query result
     return restHelper_QueryStatus();
 }

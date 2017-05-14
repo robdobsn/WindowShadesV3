@@ -145,7 +145,7 @@ public:
         WiFi.macAddress(macaddr);
         sprintf(_MACAddrStr, "%02X:%02X:%02X:%02X:%02X:%02X", macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
         return _MACAddrStr;
-    }    
+    }
 
     const char* connStateStr()
     {

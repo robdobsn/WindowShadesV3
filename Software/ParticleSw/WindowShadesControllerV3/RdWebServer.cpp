@@ -130,7 +130,7 @@ void RdWebServer::service()
     case WEB_SERVER_WAIT_CONNECT:
         if (WiFi.ready())
         {
-            Log.trace("****************** TCP Server Begin");
+            Log.info("Web Server TCPServer Begin");
             _pTCPServer->begin();
             setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
         }
@@ -157,7 +157,7 @@ void RdWebServer::service()
                 String    ipStr = ip;
                 char      ipStrBuf[20];
                 ipStr.toCharArray(ipStrBuf, 19);
-                Log.trace("Web Server Client IP %s", ipStrBuf);
+                Log.info("Web Server Client IP %s", ipStrBuf);
             }
         }
         break;
@@ -220,13 +220,13 @@ void RdWebServer::service()
            // Restart state timer to ensure timeout only happens when there is no data
            if (anyDataReceived)
            {
-               Log.trace("Received %d chars", _httpReqBufPos - debugCurHttpBufPos);
+               Log.info("Received %d chars", _httpReqBufPos - debugCurHttpBufPos);
                _webServerStateEntryMs = millis();
            }
            // Check for having been in this state for too long
            if (Utils::isTimeout(millis(), _webServerStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
            {
-               Log.trace("Web Server had client but no-data timeout - Client connection stopped");
+               Log.info("Web Server had client but no-data timeout - Client connection stopped");
                _TCPClient.stop();
                setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
            }
@@ -330,7 +330,7 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
                             // in "failed - net::ERR_CONTENT_LENGTH_MISMATCH" in Chrome browser
                             delay(1);
                         }
-                        Log.trace("Sent %s, %d bytes total, %d blocks of %d bytes",
+                        Log.info("Sent %s, %d bytes total, %d blocks of %d bytes",
                                   pRes->_pResId, pRes->_dataLen, blksSent, blkSize);
                         handledOk = true;
                     }
@@ -342,12 +342,12 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
         // If not handled ok
         if (!handledOk)
         {
-            Log.trace("Endpoint %s not found or invalid", endpointStr);
+            Log.info("Endpoint %s not found or invalid", endpointStr);
         }
     }
     else
     {
-        Log.trace("Cannot find command or args");
+        Log.info("Cannot find command or args");
     }
 
     // Handle situations where the command wasn't handled ok

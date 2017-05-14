@@ -1,4 +1,5 @@
 // Helper functions to implement application specific REST API calls
+// Rob Dobson 2012-2017
 
 char *restAPI_Help(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
                    int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)

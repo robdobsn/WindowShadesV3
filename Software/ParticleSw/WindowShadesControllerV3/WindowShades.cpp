@@ -1,7 +1,6 @@
-/* WindowShades.cpp
- * Rob Dobson 2013-2016
- * More details at http://robdobson.com/2013/10/moving-my-window-shades-control-to-mbed/
- */
+// WindowShades
+// Rob Dobson 2013-2017
+// More details at http://robdobson.com/2013/10/moving-my-window-shades-control-to-mbed/
 
 #include "WindowShades.h"
 #include "Utils.h"

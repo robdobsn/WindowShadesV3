@@ -83,7 +83,7 @@ public:
         {
             char *pStr = safeStringDup(pSourceStr + pTokens[startTokenIdx].start,
                                        pTokens[startTokenIdx].end - pTokens[startTokenIdx].start,
-                                       true);
+                                       false);
             outStr = pStr;
             delete[] pStr;
             objSize = outStr.length();
@@ -93,7 +93,7 @@ public:
             //recreateJson(pSourceStr, pTokens + startTokenIdx, objSize, 0, outStr);
             char *pStr = safeStringDup(pSourceStr + pTokens[startTokenIdx].start,
                                        pTokens[startTokenIdx].end - pTokens[startTokenIdx].start,
-                                       true);
+                                       false);
             outStr = pStr;
             delete[] pStr;
         }
@@ -290,7 +290,8 @@ public:
                                          NULL, maxTokens);
         if (tokenCountRslt < 0)
         {
-            Log.error("Failed to parse JSON: %d", tokenCountRslt);
+            Log.error("Failed to parse JSON: rslt %d, jsonStr ...", tokenCountRslt);
+            Log.error(jsonStr);
             return NULL;
         }
 
@@ -307,7 +308,8 @@ public:
                                      pTokens, tokenCountRslt);
         if (tokenCountRslt < 0)
         {
-            Log.error("Failed to parse JSON: %d", tokenCountRslt);
+            Log.error("Failed to parse JSON: rslt %d, jsonStr ...", tokenCountRslt);
+            Log.error(jsonStr);
             delete[] pTokens;
             return NULL;
         }

@@ -40,8 +40,10 @@ char *restAPI_WipeConfig(int method, char *cmdStr, char *argStr, char *msgBuffer
 char* restAPI_Reset(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
                 int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
 {
-    System.reset();
-    // Probably won't get here ...
+    Log.info("RestAPI: Reset Requested");
+    // Set a flag to indicate reset is pending
+    __systemResetPendingTimeMs = millis();
+    // Respond positively
     return restAPIsetResultStr(true);
 }
 

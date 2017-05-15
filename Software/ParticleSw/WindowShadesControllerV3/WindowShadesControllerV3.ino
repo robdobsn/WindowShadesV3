@@ -69,6 +69,10 @@ const int SENSE_A0 = A0;
 const int SENSE_A1 = A1;
 const int SENSE_A2 = A2;
 
+// Reset pending
+unsigned long __systemResetPendingTimeMs = 0;
+const long SYSTEM_RESET_DELAY_MS = 5000;
+
 // API Support (for web, etc)
 #include "RestAPIUtils.h"
 #include "RestAPIHelpers.h"
@@ -186,7 +190,7 @@ void loop()
         }
     }
     lastLoopStartUs = micros();
-    if (millis() > lastDebugLoopMs + 10000)
+    if (Utils::isTimeout(millis(), lastDebugLoopMs, 10000))
     {
         if (loopTimeAvgWinLen > 0)
         {
@@ -215,4 +219,14 @@ void loop()
     // Service notifications
     if (pNotifyMgr)
         pNotifyMgr->service();
+
+    // Check for system reset
+    if (__systemResetPendingTimeMs != 0)
+    {
+        if (Utils::isTimeout(millis(), __systemResetPendingTimeMs, SYSTEM_RESET_DELAY_MS))
+        {
+            __systemResetPendingTimeMs = 0;
+            System.reset();
+        }
+    }
 }

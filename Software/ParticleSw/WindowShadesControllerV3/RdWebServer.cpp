@@ -5,16 +5,128 @@
 #include "RdWebServer.h"
 #include "Utils.h"
 
+RdWebClient::RdWebClient()
+{
+    _webClientState = WEB_CLIENT_NONE;
+    _webClientStateEntryMs = 0;
+}
+
+
+void RdWebClient::setState(WebClientState newState)
+{
+    _webClientState        = newState;
+    _webClientStateEntryMs = millis();
+    Log.trace("WebClientState: %s", connStateStr());
+}
+
+const char *RdWebClient::connStateStr()
+{
+    switch (_webClientState)
+    {
+    case WEB_CLIENT_NONE:
+        return "None";
+
+    case WEB_CLIENT_ACCEPTED:
+        return "Accepted";
+    }
+    return "Unknown";
+}
+
+//////////////////////////////////
+// Handle the client state machine
+void RdWebClient::service(RdWebServer* pWebServer)
+{
+    // Handle different states
+    switch (_webClientState)
+    {
+    case WEB_CLIENT_NONE:
+        // See if a connection is ready to be accepted
+        _TCPClient = pWebServer->available();
+        if (_TCPClient)
+        {
+            // Now connected
+            setState(WEB_CLIENT_ACCEPTED);
+            _httpReqStr = "";
+            // Info
+            IPAddress ip    = _TCPClient.remoteIP();
+            String    ipStr = ip;
+            Log.info("Web client IP %s", ipStr.c_str());
+        }
+        break;
+
+    case WEB_CLIENT_ACCEPTED:
+       {
+           // Check if client is still connected
+           if (!_TCPClient.connected())
+           {
+               Log.trace("Web client disconnected");
+               _TCPClient.stop();
+               setState(WEB_CLIENT_NONE);
+               break;
+           }
+
+           // Anything available?
+           int numBytesAvailable = _TCPClient.available();
+           int numToRead = numBytesAvailable;
+           if (numToRead > 0)
+           {
+               // Make sure we don't overflow buffers
+               if (numToRead > MAX_CHS_IN_SERVICE_LOOP)
+               {
+                   numToRead = MAX_CHS_IN_SERVICE_LOOP;
+               }
+               if (_httpReqStr.length() + numToRead > HTTPD_MAX_REQ_LENGTH)
+               {
+                   numToRead = HTTPD_MAX_REQ_LENGTH - _httpReqStr.length();
+               }
+           }
+
+           // Check if we want to read
+           if (numToRead > 0)
+           {
+               // Read from TCP client
+               uint8_t *tmpBuf = new uint8_t[numToRead + 1];
+               int  numRead = _TCPClient.read(tmpBuf, numToRead);
+               tmpBuf[numToRead] = '\0';
+               _httpReqStr.concat((char*)tmpBuf);
+               delete [] tmpBuf;
+
+               // Check for buffer full or blank line received
+               if ((_httpReqStr.length() >= HTTPD_MAX_REQ_LENGTH) ||
+                   (_httpReqStr.indexOf("\r\n\r\n") >= 0))
+               {
+                   pWebServer->handleReceivedHttp(_httpReqStr.c_str(), _httpReqStr.length(), _TCPClient);
+                   // Close the connection now that we have responded
+                   Log.trace("Web client response complete");
+                   _TCPClient.stop();
+                   setState(WEB_CLIENT_NONE);
+               }
+               else
+               {
+                   // Restart state timer to ensure timeout only happens when there is no data
+                   Log.info("Web client rx %d chars", numRead);
+                   _webClientStateEntryMs = millis();
+               }
+           }
+           // Check for having been in this state for too long
+           if (Utils::isTimeout(millis(), _webClientStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
+           {
+               Log.info("Web client no-data timeout");
+               _TCPClient.stop();
+               setState(WEB_CLIENT_NONE);
+           }
+           break;
+       }
+    }
+}
+
 RdWebServer::RdWebServer()
 {
     _pTCPServer              = NULL;
     _TCPPort                 = 80;
-    _webServerState          = WEB_SERVER_OFFLINE;
+    _webServerState          = WEB_SERVER_STOPPED;
     _webServerStateEntryMs   = 0;
-    _httpReqBufPos           = 0;
-    _charsOnHttpReqLine      = 0;
     _numWebServerResources   = 0;
-    _lastWebServerResponseMs = 0;
 }
 
 
@@ -28,17 +140,14 @@ const char *RdWebServer::connStateStr()
 {
     switch (_webServerState)
     {
-    case WEB_SERVER_OFFLINE:
-        return "Offline";
+    case WEB_SERVER_STOPPED:
+        return "Stopped";
 
-    case WEB_SERVER_WAIT_CONNECT:
+    case WEB_SERVER_WAIT_CONN:
         return "WaitConn";
 
-    case WEB_SERVER_CONNECTED_BUT_NO_CLIENT:
-        return "ConnectedButNoClient";
-
-    case WEB_SERVER_HAS_CLIENT:
-        return "HasClient";
+    case WEB_SERVER_BEGUN:
+        return "Begun";
     }
     return "Unknown";
 }
@@ -48,17 +157,14 @@ char RdWebServer::connStateChar()
 {
     switch (_webServerState)
     {
-    case WEB_SERVER_OFFLINE:
+    case WEB_SERVER_STOPPED:
         return '0';
 
-    case WEB_SERVER_WAIT_CONNECT:
+    case WEB_SERVER_WAIT_CONN:
         return 'W';
 
-    case WEB_SERVER_CONNECTED_BUT_NO_CLIENT:
-        return 'C';
-
-    case WEB_SERVER_HAS_CLIENT:
-        return 'H';
+    case WEB_SERVER_BEGUN:
+        return 'B';
     }
     return 'K';
 }
@@ -83,7 +189,7 @@ void RdWebServer::start(int port)
     // Create server and begin
     _TCPPort    = port;
     _pTCPServer = new TCPServer(_TCPPort);
-    setState(WEB_SERVER_WAIT_CONNECT);
+    setState(WEB_SERVER_WAIT_CONN);
 }
 
 
@@ -96,13 +202,16 @@ void RdWebServer::stop()
         delete _pTCPServer;
         _pTCPServer = NULL;
     }
-    setState(WEB_SERVER_OFFLINE);
+    setState(WEB_SERVER_STOPPED);
 }
 
-
-void RdWebServer::restart()
+TCPClient RdWebServer::available()
 {
-    start(_TCPPort);
+    if (_pTCPServer)
+    {
+        return _pTCPServer->available();
+    }
+    return NULL;
 }
 
 
@@ -110,135 +219,39 @@ void RdWebServer::restart()
 // Handle the connection state machine
 void RdWebServer::service()
 {
-    // Check initialised
-    if (!_pTCPServer)
-    {
-        return;
-    }
-
     // Handle different states
     switch (_webServerState)
     {
-    case WEB_SERVER_OFFLINE:
-        if (WiFi.ready())
-        {
-            restart();
-            setState(WEB_SERVER_WAIT_CONNECT);
-        }
+    case WEB_SERVER_STOPPED:
         break;
 
-    case WEB_SERVER_WAIT_CONNECT:
+    case WEB_SERVER_WAIT_CONN:
         if (WiFi.ready())
         {
-            Log.info("Web Server TCPServer Begin");
-            _pTCPServer->begin();
-            setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
-        }
-        break;
-
-    case WEB_SERVER_CONNECTED_BUT_NO_CLIENT:
-        // Check for WiFi disconnect
-        if (!WiFi.ready())
-        {
-            Log.trace("Web Server was connected but WiFi lost ...");
-            restart();
-            break;
-        }
-        // Check for a client
-        _TCPClient = _pTCPServer->available();
-        if (_TCPClient)
-        {
-            setState(WEB_SERVER_HAS_CLIENT);
-            _httpReqBufPos      = 0;
-            _charsOnHttpReqLine = 0;
-            if (Log.isTraceEnabled())
+            start(_TCPPort);
+            if (_pTCPServer)
             {
-                IPAddress ip    = _TCPClient.remoteIP();
-                String    ipStr = ip;
-                char      ipStrBuf[20];
-                ipStr.toCharArray(ipStrBuf, 19);
-                Log.info("Web Server Client IP %s", ipStrBuf);
+                Log.info("Web Server TCPServer Begin");
+                _pTCPServer->begin();
+                setState(WEB_SERVER_BEGUN);
             }
         }
         break;
 
-    case WEB_SERVER_HAS_CLIENT:
-       {
-           // Check for WiFi disconnect
-           if (!WiFi.ready())
-           {
-               Log.trace("Web Server had client but WiFi lost -> Wait Connect");
-               _TCPClient.stop();
-               restart();
-               break;
-           }
-           // Check if client is still connected
-           if (!_TCPClient.connected())
-           {
-               Log.trace("Web Server had client but client disconnected -> Connected");
-               _TCPClient.stop();
-               setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
-               break;
-           }
-           // Check for data - but only a few chars per loop to give other
-           // parts of the code a chance to run
-           int  debugCurHttpBufPos = _httpReqBufPos;
-           bool anyDataReceived    = false;
-           for (int chIdx = 0; chIdx < MAX_CHS_IN_SERVICE_LOOP; chIdx++)
-           {
-               if (_TCPClient.available())
-               {
-                   // Get the char and put in buffer
-                   char ch = _TCPClient.read();
-                   _httpReqBuf[_httpReqBufPos++] = ch;
-                   // Check for a blank line received or buffer full
-                   if (((ch == '\n') && (_charsOnHttpReqLine == 0)) ||
-                       (_httpReqBufPos >= HTTPD_MAX_REQ_LENGTH))
-                   {
-                       // Terminate the buffer and process
-                       _httpReqBuf[_httpReqBufPos] = '\0';
-                       handleReceivedHttp(_httpReqBuf, _httpReqBufPos, _TCPClient);
-                       // Close the connection now that we have responded
-                       Log.trace("Web Server response complete - Client connection stopped");
-                       _TCPClient.stop();
-                       setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
-                       _lastWebServerResponseMs = millis();
-                       break;
-                   }
-                   // Check what char was received last
-                   if (ch == '\n')
-                   {
-                       _charsOnHttpReqLine = 0;
-                   }
-                   else if (ch != '\r')
-                   {
-                       _charsOnHttpReqLine++;
-                   }
-                   anyDataReceived = true;
-               }
-           }
-           // Restart state timer to ensure timeout only happens when there is no data
-           if (anyDataReceived)
-           {
-               Log.info("Received %d chars", _httpReqBufPos - debugCurHttpBufPos);
-               _webServerStateEntryMs = millis();
-           }
-           // Check for having been in this state for too long
-           if (Utils::isTimeout(millis(), _webServerStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
-           {
-               Log.info("Web Server had client but no-data timeout - Client connection stopped");
-               _TCPClient.stop();
-               setState(WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
-           }
-           break;
-       }
+    case WEB_SERVER_BEGUN:
+        // Service the clients
+        for (int clientIdx = 0; clientIdx < MAX_WEB_CLIENTS; clientIdx++)
+        {
+            _webClients[clientIdx].service(this);
+        }
+        break;
     }
 }
 
 
 //////////////////////////////////////
 // Handle an HTTP request
-bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& tcpClient)
+bool RdWebServer::handleReceivedHttp(const char *httpReq, int httpReqLen, TCPClient& tcpClient)
 {
     bool handledOk = false;
 
@@ -264,13 +277,12 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
 
     // See if there is a valid HTTP command
     int  contentLen = -1;
-    char endpointStr[MAX_ENDPOINT_LEN];
-    char argStr[MAX_ARGSTR_LEN];
-    if (extractEndpointArgs(httpReq + 3, endpointStr, MAX_ENDPOINT_LEN, argStr, MAX_ARGSTR_LEN, contentLen))
+    String endpointStr, argStr;
+    if (extractEndpointArgs(httpReq + 3, endpointStr, argStr, contentLen))
     {
         // Received cmd and arguments
-        Log.trace("EndPtStr %s", endpointStr);
-        Log.trace("ArgStr %s", argStr);
+        Log.trace("EndPtStr %s", endpointStr.c_str());
+        Log.trace("ArgStr %s", argStr.c_str());
 
         // Handle REST API commands
         if (_pRestAPIEndpoints)
@@ -278,13 +290,14 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
             RestAPIEndpointDef *pEndpoint = _pRestAPIEndpoints->getEndpoint(endpointStr);
             if (pEndpoint)
             {
-                Log.trace("FoundEndpoint <%s> Type %d", endpointStr, pEndpoint->_endpointType);
+                Log.trace("FoundEndpoint <%s> Type %d", endpointStr.c_str(), pEndpoint->_endpointType);
                 if (pEndpoint->_endpointType == RestAPIEndpointDef::ENDPOINT_CALLBACK)
                 {
-                    char *respStr = (pEndpoint->_callback)(httpMethod, endpointStr, argStr, httpReq, httpReqLen,
-                                                           contentLen, pPayload, payloadLen, 0);
-                    formHTTPResponse(_httpRespHeader, "200 OK", "application/json", respStr, -1);
-                    tcpClient.print(_httpRespHeader);
+                    char *respStr = (pEndpoint->_callback)(httpMethod, endpointStr.c_str(), argStr.c_str(),
+                                    httpReq, httpReqLen, contentLen, pPayload, payloadLen, 0);
+                    String httpResp;
+                    formHTTPResponse(httpResp, "200 OK", "application/json", respStr, -1);
+                    tcpClient.write((uint8_t*)httpResp.c_str(), httpResp.length());
                     handledOk = true;
                 }
             }
@@ -296,7 +309,8 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
             for (int wsResIdx = 0; wsResIdx < _numWebServerResources; wsResIdx++)
             {
                 RdWebServerResourceDescr *pRes = &(_pWebServerResources[wsResIdx]);
-                if ((strcasecmp(pRes->_pResId, endpointStr) == 0) || ((strlen(endpointStr) == 0) && (strcasecmp(pRes->_pResId, "index.html") == 0)))
+                if ((strcasecmp(pRes->_pResId, endpointStr) == 0) ||
+                            ((strlen(endpointStr) == 0) && (strcasecmp(pRes->_pResId, "index.html") == 0)))
                 {
                     if (pRes->_pData != NULL)
                     {
@@ -306,13 +320,15 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
                         const unsigned char *testBuf = pRes->_pData;
                         int                 dataLen  = pRes->_dataLen;
                         // Form header
-                        formHTTPResponse(_httpRespHeader, "200 OK", pRes->_pMimeType, "", dataLen);
-                        tcpClient.print(_httpRespHeader);
+                        String httpResp;
+                        formHTTPResponse(httpResp, "200 OK", pRes->_pMimeType, "", dataLen);
+                        tcpClient.write((uint8_t*)httpResp.c_str(), httpResp.length());
+                        tcpClient.flush();
+                        delay(1);
                         // Send data in chunks based on limited buffer sizes in TCP stack
                         const unsigned char *pMem    = (const unsigned char *)testBuf;
                         int                 nLenLeft = dataLen;
-                        // RedBear Duo seems to be ok with this block size
-                        int blkSize  = 500;
+                        int blkSize  = HTTPD_MAX_RESP_CHUNK_SIZE;
                         int blksSent = 0;
                         while (nLenLeft > 0)
                         {
@@ -329,9 +345,10 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
                             // And all subsequent attempts to send a page result
                             // in "failed - net::ERR_CONTENT_LENGTH_MISMATCH" in Chrome browser
                             delay(1);
+                            tcpClient.flush();
                         }
-                        Log.info("Sent %s, %d bytes total, %d blocks of %d bytes",
-                                  pRes->_pResId, pRes->_dataLen, blksSent, blkSize);
+                        Log.info("Sent %s, %d bytes total, %d blocks",
+                                 pRes->_pResId, pRes->_dataLen, blksSent);
                         handledOk = true;
                     }
                     break;
@@ -342,7 +359,7 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
         // If not handled ok
         if (!handledOk)
         {
-            Log.info("Endpoint %s not found or invalid", endpointStr);
+            Log.info("Endpoint %s not found or invalid", endpointStr.c_str());
         }
     }
     else
@@ -354,8 +371,9 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
     if (!handledOk)
     {
         Log.info("Returning 404 Not found");
-        formHTTPResponse(_httpRespHeader, "404 Not Found", "text/plain", "404 Not Found", -1);
-        tcpClient.print(_httpRespHeader);
+        String httpResp;
+        formHTTPResponse(httpResp, "404 Not Found", "text/plain", "404 Not Found", -1);
+        tcpClient.write((uint8_t*)httpResp.c_str(), httpResp.length());
     }
     return handledOk;
 }
@@ -363,14 +381,9 @@ bool RdWebServer::handleReceivedHttp(char *httpReq, int httpReqLen, TCPClient& t
 
 //////////////////////////////////////
 // Extract arguments from rest api string
-bool RdWebServer::extractEndpointArgs(char *buf, char *pEndpointStr, int maxEndpointStrLen,
-                                      char *pArgStr, int maxArgStrLen, int& contentLen)
+bool RdWebServer::extractEndpointArgs(const char *buf, String& endpointStr, String& argStr, int& contentLen)
 {
     contentLen    = -1;
-    *pEndpointStr = '\0';
-    *pArgStr      = '\0';
-    int endpointStrLen = 0;
-    int argStrLen      = 0;
     if (buf == NULL)
     {
         return false;
@@ -396,18 +409,12 @@ bool RdWebServer::extractEndpointArgs(char *buf, char *pEndpointStr, int maxEndp
     // Extract command
     while (*pSlash1)
     {
-        if (endpointStrLen >= maxEndpointStrLen - 1)
-        {
-            break;
-        }
         if ((*pSlash1 == '/') || (*pSlash1 == ' ') || (*pSlash1 == '\n') ||
             (*pSlash1 == '?') || (*pSlash1 == '&'))
         {
             break;
         }
-        *pEndpointStr++ = *pSlash1++;
-        *pEndpointStr   = '\0';
-        endpointStrLen++;
+        endpointStr.concat(*pSlash1++);
     }
     if ((*pSlash1 == '\0') || (*pSlash1 == ' ') || (*pSlash1 == '\n'))
     {
@@ -417,17 +424,11 @@ bool RdWebServer::extractEndpointArgs(char *buf, char *pEndpointStr, int maxEndp
     pSlash1++;
     while (*pSlash1)
     {
-        if (argStrLen >= maxArgStrLen - 1)
-        {
-            break;
-        }
         if ((*pSlash1 == ' ') || (*pSlash1 == '\n'))
         {
             break;
         }
-        *pArgStr++ = *pSlash1++;
-        *pArgStr   = '\0';
-        argStrLen++;
+        argStr.concat(*pSlash1++);
     }
     return true;
 }
@@ -449,7 +450,7 @@ void RdWebServer::addRestAPIEndpoints(RestAPIEndpoints *pRestAPIEndpoints)
 }
 
 
-unsigned char *RdWebServer::getPayloadDataFromMsg(char *msgBuf, int msgLen, int& payloadLen)
+unsigned char *RdWebServer::getPayloadDataFromMsg(const char *msgBuf, int msgLen, int& payloadLen)
 {
     payloadLen = -1;
     char *ptr = strstr(msgBuf, "\r\n\r\n");
@@ -462,7 +463,7 @@ unsigned char *RdWebServer::getPayloadDataFromMsg(char *msgBuf, int msgLen, int&
 }
 
 
-int RdWebServer::getContentLengthFromMsg(char *msgBuf)
+int RdWebServer::getContentLengthFromMsg(const char *msgBuf)
 {
     char *ptr = strstr(msgBuf, "Content-Length:");
 
@@ -480,12 +481,12 @@ int RdWebServer::getContentLengthFromMsg(char *msgBuf)
 
 
 // Form a header to respond
-void RdWebServer::formHTTPResponse(char *pRespHeader, const char *rsltCode,
-                                   const char *contentType, const char *respStr, int contentLen)
+void RdWebServer::formHTTPResponse(String& respStr, const char *rsltCode,
+                    const char *contentType, const char *respBody, int contentLen)
 {
     if (contentLen == -1)
     {
-        contentLen = strlen(respStr);
+        contentLen = strlen(respBody);
     }
-    sprintf(pRespHeader, "HTTP/1.1 %s\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s", rsltCode, contentType, contentLen, respStr);
+    respStr = String::format("HTTP/1.1 %s\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s", rsltCode, contentType, contentLen, respBody);
 }

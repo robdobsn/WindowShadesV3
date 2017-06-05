@@ -4,15 +4,15 @@
 #pragma once
 
 // Callback function for any endpoint
-typedef char * (*RestAPIEndpointCallbackType)(int method, char *endpointStr, char *argStr, char *msgBuffer, int msgLen,
-                                              int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos);
+typedef char * (*RestAPIEndpointCallbackType)(int method, const char *endpointStr, const char *argStr, const char *msgBuffer, int msgLen,
+                                              int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos);
 
 // Definition of an endpoint
 class RestAPIEndpointDef
 {
 public:
     static const int ENDPOINT_CALLBACK = 1;
-    RestAPIEndpointDef(char *pStr, int endpointType, RestAPIEndpointCallbackType callback)
+    RestAPIEndpointDef(const char *pStr, int endpointType, RestAPIEndpointCallbackType callback)
     {
         int stlen = strlen(pStr);
         _pEndpointStr = new char[stlen + 1];
@@ -73,7 +73,7 @@ public:
 
 
     // Add an endpoint
-    void addEndpoint(char *pEndpointStr, int endpointType, RestAPIEndpointCallbackType callback)
+    void addEndpoint(const char *pEndpointStr, int endpointType, RestAPIEndpointCallbackType callback)
     {
         // Check for overflow
         if (_numEndpoints >= MAX_WEB_SERVER_ENDPOINTS)
@@ -90,7 +90,7 @@ public:
 
 
     // Get the endpoint definition corresponding to a requested endpoint
-    RestAPIEndpointDef *getEndpoint(char *pEndpointStr)
+    RestAPIEndpointDef *getEndpoint(const char *pEndpointStr)
     {
         // Look for the command in the registered callbacks
         for (int endpointIdx = 0; endpointIdx < _numEndpoints; endpointIdx++)

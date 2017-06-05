@@ -2,8 +2,8 @@
 // Rob Dobson 2012-2016
 
 // Set WiFi information via API
-char *restAPI_Wifi(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                   int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_Wifi(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     bool rslt = true;
 
@@ -68,8 +68,8 @@ char *restAPI_Wifi(int method, char *cmdStr, char *argStr, char *msgBuffer, int 
 
 
 // Get or set IP details via API
-char *restAPI_NetworkIP(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                        int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_NetworkIP(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     // Get param
     String ipAddr = RestAPIEndpoints::getNthArgStr(argStr, 0);

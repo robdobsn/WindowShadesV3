@@ -10,8 +10,8 @@ char* restAPIsetResultStr(bool rslt)
     return restAPIHelpersBuffer;
 }
 
-char *restAPI_RequestNotifications(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                                   int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_RequestNotifications(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     // Get IP address and port for notifications
     String ipAndPort = RestAPIEndpoints::getNthArgStr(argStr, 0);
@@ -28,8 +28,8 @@ char *restAPI_RequestNotifications(int method, char *cmdStr, char *argStr, char 
 }
 
 
-char *restAPI_WipeConfig(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                         int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_WipeConfig(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     EEPROM.clear();
     configEEPROM.readFromEEPROM();
@@ -37,8 +37,8 @@ char *restAPI_WipeConfig(int method, char *cmdStr, char *argStr, char *msgBuffer
     return restAPIsetResultStr(true);
 }
 
-char* restAPI_Reset(int method, char*cmdStr, char* argStr, char* msgBuffer, int msgLen,
-                int contentLen, unsigned char* pPayload, int payloadLen, int splitPayloadPos)
+char* restAPI_Reset(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     Log.info("RestAPI: Reset Requested");
     // Set a flag to indicate reset is pending

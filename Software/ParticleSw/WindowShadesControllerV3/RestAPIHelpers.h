@@ -1,8 +1,8 @@
 // Helper functions to implement application specific REST API calls
 // Rob Dobson 2012-2017
 
-char *restAPI_Help(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                   int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_Help(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     return "/blind/1..N/up|stop|down/pulse|on|off, Q, IW/SSID/PW/WPA2, IP/IPADDR, IP/IPADDR/MASK/GWAY/DNS";
 }
@@ -70,15 +70,15 @@ char *restHelper_QueryStatus()
 }
 
 
-char *restAPI_QueryStatus(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                          int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_QueryStatus(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     return restHelper_QueryStatus();
 }
 
 
-char *restAPI_ShadesControl(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                            int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_ShadesControl(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     String shadeNumStr      = RestAPIEndpoints::getNthArgStr(argStr, 0);
     int    shadeNum         = shadeNumStr.toInt();
@@ -98,8 +98,8 @@ char *restAPI_ShadesControl(int method, char *cmdStr, char *argStr, char *msgBuf
     return restAPIsetResultStr(true);
 }
 
-char *restAPI_ShadesConfig(int method, char *cmdStr, char *argStr, char *msgBuffer, int msgLen,
-                           int contentLen, unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+char *restAPI_ShadesConfig(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
+                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
 {
     String configStr = "{";
     // Window name

@@ -207,9 +207,10 @@ void loop()
     if (pWebServer)
     {
         pWebServer->service();
-        int connState = pWebServer->connState();
-        digitalWrite(LED_ACT, connState == RdWebServer::WebServerState::WEB_SERVER_CONNECTED_BUT_NO_CLIENT);
-        digitalWrite(LED_OP, connState == RdWebServer::WebServerState::WEB_SERVER_HAS_CLIENT);
+        int serverConnState = pWebServer->serverConnState();
+        digitalWrite(LED_ACT, serverConnState == RdWebServer::WebServerState::WEB_SERVER_BEGUN);
+        int clientConnections = pWebServer->clientConnections();
+        digitalWrite(LED_OP, clientConnections > 0);
     }
 
     // Service the window shades

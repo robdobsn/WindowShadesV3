@@ -1,17 +1,17 @@
-// Helper functions to implement application specific REST API calls
-// Rob Dobson 2012-2017
+// Helper functions to implement REST API calls
+// Rob Dobson 2012-2016
 
-char *restAPI_Help(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
-                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+unsigned long restHelper_QueryStatusHash()
 {
-    return "/blind/1..N/up|stop|down/pulse|on|off, Q, IW/SSID/PW/WPA2, IP/IPADDR, IP/IPADDR/MASK/GWAY/DNS";
+    return ParticleCloud::HASH_VALUE_FOR_ALWAYS_REPORT;
 }
 
-char *restHelper_QueryStatus()
+void restHelper_QueryStatus(const char* pIdStr,
+                String* pInitialContentJsonElementList, String& retStr)
 {
     // Get information on status
-    String shadeWindowName = configEEPROM.getString("WINNAME", "");
-    int numShades = configEEPROM.getLong("NUMSHADES", 0);
+    String shadeWindowName = configEEPROM.getString("name", "");
+    int numShades = configEEPROM.getLong("numShades", 0);
     if (numShades < 1)
     {
         numShades = 1;
@@ -23,13 +23,14 @@ char *restHelper_QueryStatus()
     String numShadesStr = String::format("%d", numShades);
 
     // // Return info about IP and WiFi
-    String retStr = "{ \"numShades\": \"";
+    retStr = "\"numShades\": \"";
     retStr.concat(numShadesStr);
     retStr.concat("\", \"name\": \"");
     retStr.concat(shadeWindowName);
     // WiFi IP Address
     retStr.concat("\", \"wifiIP\": \"");
-    retStr.concat(pParticleCloud->localIPStr());
+    String localIPStr = WiFi.localIP();
+    retStr.concat(localIPStr.c_str());
     // Light sensors
     const int lightSensorPins[] = { SENSE_A0, SENSE_A1, SENSE_A2 };
     const int numPins           = sizeof(lightSensorPins) / sizeof(int);
@@ -52,7 +53,7 @@ char *restHelper_QueryStatus()
     // Add name for each shade
     for (int i = 0; i < numShades; i++)
     {
-        String shadeName = configEEPROM.getString(String::format("SHADENAME%d", i), "");
+        String shadeName = configEEPROM.getString(String::format("sh%d", i), "");
         retStr.concat("{\"name\": \"");
         retStr.concat(shadeName);
         retStr.concat("\", \"num\": \"");
@@ -64,85 +65,48 @@ char *restHelper_QueryStatus()
         }
     }
     retStr.concat("]");
-    retStr.concat("}");
-    retStr.toCharArray(restAPIHelpersBuffer, MAX_REST_API_RETURN_LEN);
-    return restAPIHelpersBuffer;
+    retStr = "{" + retStr +
+        (pInitialContentJsonElementList != NULL ? "," : "") +
+        (pInitialContentJsonElementList != NULL ? *pInitialContentJsonElementList : "") + "}";
+    retStr = retStr.replace('\'', '\"');
 }
 
-
-char *restAPI_QueryStatus(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
-                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+void restAPI_QueryStatus(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    return restHelper_QueryStatus();
+    restHelper_QueryStatus(NULL, NULL, retStr);
 }
 
-
-char *restAPI_ShadesControl(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
-                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+void restAPI_WipeConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    String shadeNumStr      = RestAPIEndpoints::getNthArgStr(argStr, 0);
-    int    shadeNum         = shadeNumStr.toInt();
-    String shadeCmdStr      = RestAPIEndpoints::getNthArgStr(argStr, 1);
-    String shadeDurationStr = RestAPIEndpoints::getNthArgStr(argStr, 2);
-
-    if ((shadeNum < 1) || (shadeNum > pWindowShades->getMaxNumShades()))
-    {
-        return restAPIsetResultStr(false);
-    }
-    int shadeIdx = shadeNum - 1;
-    if (pWindowShades == NULL)
-    {
-        return restAPIsetResultStr(false);
-    }
-    pWindowShades->doCommand(shadeIdx, shadeCmdStr, shadeDurationStr);
-    return restAPIsetResultStr(true);
+    EEPROM.clear();
+    configEEPROM.readFromEEPROM();
+    Serial.println("EEPROM Cleared");
+    restAPI_setResultStr(retStr, true);
 }
 
-char *restAPI_ShadesConfig(int method, const char *cmdStr, const char *argStr, const char *msgBuffer, int msgLen,
-                   int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos)
+void restAPI_Reset(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    String configStr = "{";
-    // Window name
-    String shadeWindowName = RestAPIEndpoints::getNthArgStr(argStr, 0);
-    configStr.concat("\"WINNAME\":\"");
-    configStr.concat(shadeWindowName);
-    configStr.concat("\"");
+    System.reset();
+    restAPI_setResultStr(retStr, true);
+}
 
-    // Number of shades
-    String numShadesStr = RestAPIEndpoints::getNthArgStr(argStr, 1);
-    int    numShades    = numShadesStr.toInt();
-    if (numShades < 1)
-    {
-        numShades = 1;
-    }
-    if (numShades > pWindowShades->getMaxNumShades())
-    {
-        numShades = pWindowShades->getMaxNumShades();
-    }
-    numShadesStr = String::format("%d", numShades);
-    configStr.concat(",\"NUMSHADES\":\"");
-    configStr.concat(numShadesStr);
-    configStr.concat("\"");
+void restAPI_Help(RestAPIEndpointMsg& apiMsg, String& retStr)
+{
+    retStr = "/blind/1..N/up|stop|down/pulse|on|off, Q";
+}
 
-    // Shade names
-    for (int i = 0; i < numShades; i++)
-    {
-        String shadeName = RestAPIEndpoints::getNthArgStr(argStr, 2 + i);
-        configStr.concat(",\"SHADENAME");
-        configStr.concat(i);
-        configStr.concat("\":\"");
-        configStr.concat(shadeName);
-        configStr.concat("\"");
-    }
-    configStr.concat("}");
+// Register REST API commands
+void setupRestAPI_Helpers()
+{
+    // Query
+    restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_QueryStatus, "");
 
-    // Debug
-    Log.trace("Writing config %s", configStr.c_str());
+    // Reset device
+    restAPIEndpoints.addEndpoint("RESET", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Reset, "");
 
-    // Store in config
-    configEEPROM.setConfigData(configStr.c_str());
-    configEEPROM.writeToEEPROM();
+    // Wipe config
+    restAPIEndpoints.addEndpoint("WIPEALL", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WipeConfig, "");
 
-    // Return the query result
-    return restHelper_QueryStatus();
+    // Wipe config
+    restAPIEndpoints.addEndpoint("HELP", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Help, "");
 }

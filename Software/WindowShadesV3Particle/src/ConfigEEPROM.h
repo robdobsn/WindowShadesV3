@@ -28,7 +28,7 @@ public:
     {
         // configStr defines the location of config
         bool isValid   = false;
-        long configPos = ConfigManager::getLong("base", 0, isValid, configStr);
+        long configPos = RdJson::getLong("base", 0, isValid, configStr);
 
         if (!isValid)
         {
@@ -36,7 +36,7 @@ public:
             return false;
         }
 
-        long configMaxLen = ConfigManager::getLong("maxLen", 500, isValid, configStr);
+        long configMaxLen = RdJson::getLong("maxLen", 500, isValid, configStr);
         if (!isValid)
         {
             Log.error("configLocation maxLen not found");
@@ -91,8 +91,8 @@ public:
             char ch = EEPROM.read(_eepromBaseLocation + chIdx);
             pData[chIdx] = ch;
         }
-        pData[dataStrLen + 1] = 0;
-        Log.info("Read config str: %s", pData);
+        pData[dataStrLen] = 0;
+        Log.info("Cfg: %s", pData);
 
         // Store in config string
         setConfigData(pData);

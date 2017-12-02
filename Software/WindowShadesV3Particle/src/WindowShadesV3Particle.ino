@@ -13,6 +13,7 @@
 //                                           duration is "pulse", "on", "off"
 //   Wipe config:    /WC/1234             - wipe config EEPROM
 //   Query status:   /Q
+//   Help:           /HELP
 //   Set shades:     /SHADECFG/#/name1/name2/name3/name4/name5/name6
 //                                        - # = number of shades, name1..6 = shade name
 //                                        - responds with same info as Query Status
@@ -22,16 +23,14 @@
 
 //#define DEBUG_CLEAR_EEPROM 1
 
-// Particle Threading and cloud connection
-SYSTEM_THREAD(ENABLED);
-SYSTEM_MODE(AUTOMATIC);
+// Main include for Particle applications
+#include "application.h"
 
 // Logging
 SerialLogHandler logHandler(LOG_LEVEL_TRACE);
 
 // Utils
 #include "Utils.h"
-Utils _utils;
 
 // Config
 #include "ConfigEEPROM.h"
@@ -57,6 +56,9 @@ RdWebServer* pWebServer = NULL;
 #include "NotifyMgr.h"
 NotifyMgr* pNotifyMgr = NULL;
 
+// Debug loop used to time main loop
+#include "DebugLoopTimer.h"
+
 // Window shades
 #include "WindowShades.h"
 WindowShades* pWindowShades = NULL;
@@ -69,38 +71,32 @@ const int SENSE_A0 = A0;
 const int SENSE_A1 = A1;
 const int SENSE_A2 = A2;
 
-// Reset pending
-unsigned long __systemResetPendingTimeMs = 0;
-const long SYSTEM_RESET_DELAY_MS = 5000;
+SYSTEM_THREAD(ENABLED);
+SYSTEM_MODE(AUTOMATIC);
+STARTUP(System.enableFeature(FEATURE_RESET_INFO));
+
+// Debug loop timer and callback function
+void debugLoopInfoCallback(String& infoStr)
+{
+  String ipAddr = WiFi.localIP();
+  infoStr = String::format(" IP %s FW %s RST %d", ipAddr.c_str(),
+            System.version().c_str(), System.resetReason());
+}
+DebugLoopTimer debugLoopTimer(10000, debugLoopInfoCallback);
 
 // API Support (for web, etc)
 #include "RestAPIUtils.h"
 #include "RestAPIHelpers.h"
-#include "RestAPIWiFiAndIP.h"
-
+#include "RestAPINetwork.h"
+#include "RestAPIShadesManagement.h"
+#include "RestAPINotificationManagement.h"
 
 void setupRestAPIEndpoints()
 {
-
-    // Add network management REST API commands
-    restAPIEndpoints.addEndpoint("IW", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Wifi);
-    restAPIEndpoints.addEndpoint("IP", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_NetworkIP);
-
-    // Query
-    restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_QueryStatus);
-
-    // Add window shades REST API commands to web server
-    restAPIEndpoints.addEndpoint("BLIND", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesControl);
-    restAPIEndpoints.addEndpoint("SHADECFG", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesConfig);
-
-    // Add notifications
-    restAPIEndpoints.addEndpoint("NO", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_RequestNotifications);
-
-    // Reset device
-    restAPIEndpoints.addEndpoint("RESET", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Reset);
-
-    // Wipe config
-    restAPIEndpoints.addEndpoint("WIPEALL", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WipeConfig);
+    setupRestAPI_Network();
+    setupRestAPI_ShadesManagement();
+    setupRestAPI_NotificationManager();
+    setupRestAPI_Helpers();
 }
 
 void setup()
@@ -110,7 +106,8 @@ void setup()
 
     // Short delay before message
     delay(5000);
-    Log.info("WindowShades V3.2 2017/12/02");
+    String systemName = "WindowShades";
+    Log.info("%s V3.2 2017/12/02", systemName.c_str());
 
     #ifdef DEBUG_CLEAR_EEPROM
     EEPROM.clear();
@@ -125,7 +122,9 @@ void setup()
     configEEPROM.setConfigLocation(EEPROM_CONFIG_LOCATION_STR);
 
     // Particle Cloud
-    pParticleCloud = new ParticleCloud(handleReceivedApiStr, restHelper_QueryStatus);
+    pParticleCloud = new ParticleCloud(handleReceivedApiStr,
+                restHelper_QueryStatus, restHelper_QueryStatusHash,
+                5000, systemName);
     pParticleCloud->RegisterVariables();
 
     // Construct web server
@@ -155,53 +154,14 @@ void setup()
 
 }
 
-// Timing of the loop - used to determine if blocking/slow processes are delaying the loop iteration
-const int loopTimeAvgWinLen = 50;
-int loopTimeAvgWinUs[loopTimeAvgWinLen];
-int loopTimeAvgWinHead = 0;
-int loopTimeAvgWinCount = 0;
-unsigned long loopTimeSumUs = 0;
-unsigned long lastLoopStartUs = 0;
-unsigned long lastDebugLoopMs = 0;
-
 void loop()
 {
     // Service the particle cloud
     if (pParticleCloud)
-        pParticleCloud->Service(false);
+        pParticleCloud->Service();
 
-    // Monitor how long it takes to go around loop
-    if (lastLoopStartUs != 0)
-    {
-        unsigned long loopTimeUs = micros() - lastLoopStartUs;
-        if (loopTimeUs > 0)
-        {
-            if (loopTimeAvgWinCount == loopTimeAvgWinLen)
-            {
-                int oldVal = loopTimeAvgWinUs[loopTimeAvgWinHead];
-                loopTimeSumUs -= oldVal;
-            }
-            loopTimeAvgWinUs[loopTimeAvgWinHead++] = loopTimeUs;
-            if (loopTimeAvgWinHead >= loopTimeAvgWinLen)
-                loopTimeAvgWinHead = 0;
-            if (loopTimeAvgWinCount < loopTimeAvgWinLen)
-                loopTimeAvgWinCount++;
-            loopTimeSumUs += loopTimeUs;
-        }
-    }
-    lastLoopStartUs = micros();
-    if (Utils::isTimeout(millis(), lastDebugLoopMs, 10000))
-    {
-        if (loopTimeAvgWinLen > 0)
-        {
-            Log.info("Avg loop %0.2fuS", 1.0 * loopTimeSumUs / loopTimeAvgWinLen);
-        }
-        else
-        {
-            Log.trace("No avg loop time yet");
-        }
-        lastDebugLoopMs = millis();
-    }
+    // Debug loop Timing
+    debugLoopTimer.Service();
 
     // Service the web server
     if (pWebServer)
@@ -221,13 +181,4 @@ void loop()
     if (pNotifyMgr)
         pNotifyMgr->service();
 
-    // Check for system reset
-    if (__systemResetPendingTimeMs != 0)
-    {
-        if (Utils::isTimeout(millis(), __systemResetPendingTimeMs, SYSTEM_RESET_DELAY_MS))
-        {
-            __systemResetPendingTimeMs = 0;
-            System.reset();
-        }
-    }
 }

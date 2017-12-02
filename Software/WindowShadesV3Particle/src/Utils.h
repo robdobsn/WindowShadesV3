@@ -37,6 +37,7 @@ public:
 
 
     // Following code from Unix sources
+    static const unsigned long INADDR_NONE = ((unsigned long) 0xffffffff);
     static unsigned long convIPStrToAddr(String& inStr)
     {
         char buf[30];
@@ -148,8 +149,4 @@ public:
         }
         return(val);
     }
-
-public:
-    static const unsigned long INADDR_NONE = ((unsigned long) 0xffffffff);
-
 };

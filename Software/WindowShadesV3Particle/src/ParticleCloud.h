@@ -1,28 +1,28 @@
-// ParticleCloud
-// Rob Dobson 2016-2017
+// Particle cloud handler
+// Rob Dobson 2012-2017
 
 #pragma once
+
+typedef void (*ParticleRxCallbackType)(const char* cmdStr, String& retStr);
+
+typedef void (*ParticleCallbackType)(const char* idStr,
+                String* initialContentJsonElementList, String& retStr);
+typedef unsigned long (*ParticleHashCallbackType)();
+
+const int MAX_API_STR_LEN = 1000;
 
 #include "application.h"
 #include "Utils.h"
 
-// Time between time re-syncs on the particle cloud
-const int CLOUD_RESYNC_TIME_SECS = 24 * 60 * 60;
-
 // Alive rate
 const unsigned long ALIVE_EVENT_MILLIS = 30000;
 
-// Status update rate
-const unsigned long STATUS_UPDATE_MILLIS = 5000;
-
-// Callback functions
-typedef char * (*ParticleRxCallbackType)(const char *cmdStr);
 static ParticleRxCallbackType __pParticleRxCallback = NULL;
-typedef char * (*ParticleStatusCallbackType)();
-static ParticleStatusCallbackType __queryStatusFn = NULL;
-
-// Statics
+static ParticleCallbackType __queryStatusFn = NULL;
+static ParticleHashCallbackType __queryStatusHashFn = NULL;
+static char __receivedApiBuf[MAX_API_STR_LEN];
 static String __appStatusStr;
+static unsigned long __lastStatusHashValue = 0xffffffff;
 static bool   __particleVariablesRegistered = false;
 
 // Static function used as a callback
@@ -31,7 +31,9 @@ static int __particleApiCall(String cmd)
     // Check if there is a callback to call
     if (__pParticleRxCallback)
     {
-        __pParticleRxCallback(cmd.c_str());
+        cmd.toCharArray(__receivedApiBuf, MAX_API_STR_LEN);
+        String retStr;
+        __pParticleRxCallback(__receivedApiBuf, retStr);
     }
     return 0;
 }
@@ -42,14 +44,33 @@ static int __particleApiCall(String cmd)
 class ParticleCloud
 {
 public:
-    ParticleCloud(ParticleRxCallbackType pParticleRxCallback, ParticleStatusCallbackType queryStatusFn)
+    static const unsigned long HASH_VALUE_FOR_ALWAYS_REPORT = 0xffffffff;
+
+    // Last time an "Alive" event was sent to the particle cloud
+    unsigned long _isAliveLastMillis;
+
+    // Last time appStatusStr was updated
+    unsigned long _statusUpdateLastMillis;
+
+    // Time between update checks
+    unsigned long _statusEventCheckMs;
+
+    // System name
+    String _systemName;
+
+    ParticleCloud(ParticleRxCallbackType pParticleRxCallback,
+        ParticleCallbackType queryStatusFn,
+        ParticleHashCallbackType queryStatusHashFn,
+        unsigned long statusEventCheckMs,
+        const char* systemName)
     {
         __pParticleRxCallback   = pParticleRxCallback;
         __queryStatusFn         = queryStatusFn;
+        __queryStatusHashFn = queryStatusHashFn;
         _isAliveLastMillis      = 0;
         _statusUpdateLastMillis = 0;
-        _bCloudSyncTime         = true;
-        _lastCloudTimeSync      = 0;
+        _statusEventCheckMs = statusEventCheckMs;
+        _systemName = systemName;
     }
 
     void RegisterVariables()
@@ -61,15 +82,8 @@ public:
         Particle.function("apiCall", __particleApiCall);
     }
 
-
-    void Service(const bool particleCloudProcessRequired)
-    {
-        // Give the particle system time
-        if (particleCloudProcessRequired && Particle.connected())
+    void Service()
         {
-            Particle.process();
-        }
-
         // Check if particle variables registered
         if (!__particleVariablesRegistered)
         {
@@ -83,98 +97,29 @@ public:
         // Say we're alive to the particle cloud every now and then
         if (Utils::isTimeout(millis(), _isAliveLastMillis, ALIVE_EVENT_MILLIS))
         {
+            // Log.info("Publishing Event to Particle Cloud");
             if (Particle.connected())
             {
-                Particle.publish("Shades Control Alive", __appStatusStr);
+                Particle.publish(_systemName.c_str(), __appStatusStr);
             }
             _isAliveLastMillis = millis();
+            // Log.info("Published Event to Particle Cloud");
         }
 
         // Check if a new status check is needed
-        if (Utils::isTimeout(millis(), _statusUpdateLastMillis, STATUS_UPDATE_MILLIS))
+        if (Utils::isTimeout(millis(), _statusUpdateLastMillis, _statusEventCheckMs))
         {
             // Check for status change
-            char *statusStr = __queryStatusFn();
-            if (!__appStatusStr.equals(statusStr))
+            unsigned long statusHash = __queryStatusHashFn();
+            if ((statusHash != __lastStatusHashValue) || (statusHash == HASH_VALUE_FOR_ALWAYS_REPORT))
             {
-                Log.trace("Particle var status has changed");
-                Log.trace(statusStr);
-                __appStatusStr = statusStr;
+                // Log.info("Particle var status has changed");
+                __queryStatusFn(NULL, NULL, __appStatusStr);
+                __lastStatusHashValue = statusHash;
+                // Log.info("Particle var status updated ok");
             }
             _statusUpdateLastMillis = millis();
         }
-
-        if (Particle.connected())
-        {
-            // Check if particle time needs to be updated
-            if (Utils::isTimeout(millis(), _lastCloudTimeSync, CLOUD_RESYNC_TIME_SECS * 1000))
-            {
-                _bCloudSyncTime    = true;
-                _lastCloudTimeSync = millis();
             }
 
-            // Sync time if required
-            if (_bCloudSyncTime)
-            {
-                Particle.syncTime();
-                _bCloudSyncTime = false;
-            }
-        }
-    }
-
-
-    char *localIPStr()
-    {
-        IPAddress ipA = WiFi.localIP();
-
-        sprintf(_localIPStr, "%d.%d.%d.%d", ipA[0], ipA[1], ipA[2], ipA[3]);
-        return _localIPStr;
-    }
-
-    const char* BSSIDStr()
-    {
-        byte bssid[6];
-        WiFi.BSSID(bssid);
-        sprintf(_BSSIDStr, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
-        return _BSSIDStr;
-    }
-
-    const char* MACAddrStr()
-    {
-        byte macaddr[6];
-        WiFi.macAddress(macaddr);
-        sprintf(_MACAddrStr, "%02X:%02X:%02X:%02X:%02X:%02X", macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
-        return _MACAddrStr;
-    }
-
-    const char* connStateStr()
-    {
-        if (WiFi.listening())
-            return "ListenMode";
-        if (Particle.connected())
-            return "CloudConn";
-        if (WiFi.ready())
-            return "WiFiReady";
-        if (WiFi.connecting())
-            return "Connecting";
-        return "None";
-    }
-
-private:
-    // Last time an "Alive" event was sent to the particle cloud
-    unsigned long _isAliveLastMillis;
-
-    // Last time appStatusStr was updated
-    unsigned long _statusUpdateLastMillis;
-
-    // Cloud time sync handlers
-    bool          _bCloudSyncTime;
-    unsigned long _lastCloudTimeSync;
-
-    // Local IP Addr as string
-    char _localIPStr[20];
-    // BSSID as string
-    char _BSSIDStr[40];
-    // MAC as string
-    char _MACAddrStr[20];
 };

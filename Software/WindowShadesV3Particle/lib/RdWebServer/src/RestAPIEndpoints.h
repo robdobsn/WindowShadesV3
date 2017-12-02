@@ -3,29 +3,53 @@
 
 #pragma once
 
+// Information on received API request
+struct RestAPIEndpointMsg
+{
+    int _method;
+    const char* _pEndpointStr;
+    const char* _pArgStr;
+    const char* _pMsgHeader;
+    unsigned char* _pMsgContent;
+    int _msgContentLen;
+    RestAPIEndpointMsg(int method, const char* pEndpointStr, const char* pArgStr, const char* pMsgHeader)
+    {
+        _method = method;
+        _pEndpointStr = pEndpointStr;
+        _pArgStr = pArgStr;
+        _pMsgHeader = pMsgHeader;
+        _pMsgContent = NULL;
+        _msgContentLen = 0;
+    }
+};
+
 // Callback function for any endpoint
-typedef char * (*RestAPIEndpointCallbackType)(int method, const char *endpointStr, const char *argStr, const char *msgBuffer, int msgLen,
-                                              int contentLen, const unsigned char *pPayload, int payloadLen, int splitPayloadPos);
+typedef void (*RestAPIEndpointCallbackType)(RestAPIEndpointMsg& restAPIEndpointMsg, String& retStr);
 
 // Definition of an endpoint
 class RestAPIEndpointDef
 {
 public:
     static const int ENDPOINT_CALLBACK = 1;
-    RestAPIEndpointDef(const char *pStr, int endpointType, RestAPIEndpointCallbackType callback)
+    RestAPIEndpointDef(const char *pStr, int endpointType, RestAPIEndpointCallbackType callback, const char* pContentType)
     {
         int stlen = strlen(pStr);
+
         _pEndpointStr = new char[stlen + 1];
         strcpy(_pEndpointStr, pStr);
         _endpointType = endpointType;
         _callback     = callback;
+        _pContentType = new char[strlen(pContentType) + 1];
+        strcpy(_pContentType, pContentType);
     };
     ~RestAPIEndpointDef()
     {
         delete _pEndpointStr;
+        delete _pContentType;
     }
-    char *_pEndpointStr;
-    int  _endpointType;
+    char* _pEndpointStr;
+    int   _endpointType;
+    char* _pContentType;
     RestAPIEndpointCallbackType _callback;
 };
 
@@ -73,7 +97,7 @@ public:
 
 
     // Add an endpoint
-    void addEndpoint(const char *pEndpointStr, int endpointType, RestAPIEndpointCallbackType callback)
+    void addEndpoint(const char *pEndpointStr, int endpointType, RestAPIEndpointCallbackType callback, const char* pContentType)
     {
         // Check for overflow
         if (_numEndpoints >= MAX_WEB_SERVER_ENDPOINTS)
@@ -82,7 +106,7 @@ public:
         }
 
         // Create new command definition and add
-        RestAPIEndpointDef *pNewEndpointDef = new RestAPIEndpointDef(pEndpointStr, endpointType, callback);
+        RestAPIEndpointDef *pNewEndpointDef = new RestAPIEndpointDef(pEndpointStr, endpointType, callback, pContentType);
 
         _pEndpoints[_numEndpoints] = pNewEndpointDef;
         _numEndpoints++;
@@ -106,12 +130,13 @@ public:
 
 
     // Handle an API request
-    char *handleApiRequest(const char *requestStr)
+    void handleApiRequest(const char *requestStr, String& retStr)
     {
         // Get the command
         static char *emptyStr       = (char *)"";
         String      requestEndpoint = getNthArgStr(requestStr, 0).toUpperCase();
         char        *argStart       = strstr(requestStr, "/");
+        retStr = "";
 
         if (argStart == NULL)
         {
@@ -139,17 +164,18 @@ public:
             }
             if (requestEndpoint.equalsIgnoreCase(pEndpointStr))
             {
-                return callback(0, NULL, argStart, NULL, 0, 0, NULL, 0, 0);
+                RestAPIEndpointMsg endpointMsg(0, NULL, argStart, NULL);
+                callback(endpointMsg, retStr);
             }
         }
-        return emptyStr;
     }
+
 
     // Form a string from a char buffer with a fixed length
     static void formStringFromCharBuf(String& outStr, const char *pStr, int len)
     {
         outStr = "";
-        outStr.reserve(len+1);
+        outStr.reserve(len + 1);
         for (int i = 0; i < len; i++)
         {
             outStr.concat(*pStr);
@@ -157,12 +183,13 @@ public:
         }
     }
 
+
     // Get Nth argument from a string
     static String getNthArgStr(const char *argStr, int argIdx)
     {
-        int    argLen = 0;
-        String oStr;
-        const char   *pStr = getArgPtrAndLen(argStr, argIdx, argLen);
+        int        argLen = 0;
+        String     oStr;
+        const char *pStr = getArgPtrAndLen(argStr, argIdx, argLen);
 
         if (pStr)
         {
@@ -205,8 +232,8 @@ public:
     // Num args from an argStr
     static int getNumArgs(const char *argStr)
     {
-        int  numArgs       = 0;
-        int  numChSinceSep = 0;
+        int        numArgs       = 0;
+        int        numChSinceSep = 0;
         const char *pCh          = argStr;
 
         // Count args

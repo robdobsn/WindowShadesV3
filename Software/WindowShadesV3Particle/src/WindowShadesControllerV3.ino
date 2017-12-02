@@ -110,7 +110,7 @@ void setup()
 
     // Short delay before message
     delay(5000);
-    Log.info("WindowShades V3.1 2017/05/12");
+    Log.info("WindowShades V3.2 2017/12/02");
 
     #ifdef DEBUG_CLEAR_EEPROM
     EEPROM.clear();

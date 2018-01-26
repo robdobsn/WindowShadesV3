@@ -138,7 +138,7 @@ with open(os.path.join(GEN_RESOURCES_H_FOLDER, "GenResources.h"), "w") as outFil
         outFile.write("\"" + fileInf["fileName"] + "\", ")
         outFile.write("\"" + mimeType + "\", ")
         outFile.write(fileInf["fileCIdent"] + ", ")
-        outFile.write("sizeof(" + fileInf["fileCIdent"] + "))")
+        outFile.write("sizeof(" + fileInf["fileCIdent"] + ")-1)")
     outFile.write("\n" + " " * lineNormalIndentChars + "};\n\n")
 
     # Write the sixe of the resource list

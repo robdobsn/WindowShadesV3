@@ -107,7 +107,7 @@ void setup()
     // Short delay before message
     delay(5000);
     String systemName = "WindowShades";
-    Log.info("%s V3.2 2017/12/02", systemName.c_str());
+    Log.info("%s (built %s %s)", systemName.c_str(), __DATE__, __TIME__);
 
     #ifdef DEBUG_CLEAR_EEPROM
     EEPROM.clear();

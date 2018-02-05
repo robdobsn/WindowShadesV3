@@ -860,8 +860,8 @@ static const uint8_t reso_index_html[] {
 
 // Resource descriptions
 static RdWebServerResourceDescr genResources[] = {
-    RdWebServerResourceDescr("favicon.ico", "image/ico", reso_favicon_ico, sizeof(reso_favicon_ico)),
-    RdWebServerResourceDescr("index.html", "text/html", reso_index_html, sizeof(reso_index_html))
+    RdWebServerResourceDescr("favicon.ico", "image/ico", "", reso_favicon_ico, sizeof(reso_favicon_ico)-1),
+    RdWebServerResourceDescr("index.html", "text/html", "", reso_index_html, sizeof(reso_index_html)-1)
     };
 
 static int genResourcesCount = sizeof(genResources) / sizeof(RdWebServerResourceDescr);

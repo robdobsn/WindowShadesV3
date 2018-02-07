@@ -27,8 +27,19 @@ void restHelper_QueryStatus(const char* pIdStr,
     retStr.concat(numShadesStr);
     retStr.concat("\", \"name\": \"");
     retStr.concat(shadeWindowName);
+    retStr.concat("\",");
+
+    // System status
+    uint16_t resetReason = System.resetReason();
+    uint32_t systemVersion = System.versionNumber();
+    String sOut = String::format("\"rst\":\"%d\",\"ver\":\"%08x\",\"blddt\":\"%s\",\"bldtm\":\"%s\",",
+                    resetReason,
+                    systemVersion,
+                    __DATE__, __TIME__);
+    retStr.concat(sOut);
+
     // WiFi IP Address
-    retStr.concat("\", \"wifiIP\": \"");
+    retStr.concat("\"wifiIP\": \"");
     String localIPStr = WiFi.localIP();
     retStr.concat(localIPStr.c_str());
     // Light sensors

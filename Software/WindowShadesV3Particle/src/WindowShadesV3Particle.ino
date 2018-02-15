@@ -52,6 +52,11 @@ const int webServerPort = 80;
 RdWebServer* pWebServer = NULL;
 #include "GenResources.h"
 
+// UDP Server
+#include "UdpRestApiServer.h"
+int udpRestApiServerPort = 7193;
+UdpRestApiServer* pUdpRestApiServer = NULL;
+
 // Notifications
 #include "NotifyMgr.h"
 NotifyMgr* pNotifyMgr = NULL;
@@ -121,6 +126,14 @@ void setup()
     // Initialise the config manager
     configEEPROM.setConfigLocation(EEPROM_CONFIG_LOCATION_STR);
 
+    // Validate settings
+    int numShades = configEEPROM.getLong("numShades", -1);
+    if (numShades == -1)
+    {
+        // Clear the config string
+        configEEPROM.setConfigData("");
+    }
+    
     // Particle Cloud
     pParticleCloud = new ParticleCloud(handleReceivedApiStr,
                 restHelper_QueryStatus, restHelper_QueryStatusHash,
@@ -129,6 +142,9 @@ void setup()
 
     // Construct web server
     pWebServer = new RdWebServer();
+
+    // Construct UDP server
+    pUdpRestApiServer = new UdpRestApiServer(handleReceivedApiStr);
 
     // Setup REST API endpoints
     setupRestAPIEndpoints();
@@ -142,6 +158,10 @@ void setup()
         // Start the web server
         pWebServer->start(webServerPort);
     }
+
+    // Configure UDP server
+    if (pUdpRestApiServer)
+        pUdpRestApiServer->start(udpRestApiServerPort);
 
     // Notifications handler
     pNotifyMgr = new NotifyMgr();
@@ -172,6 +192,10 @@ void loop()
         int clientConnections = pWebServer->clientConnections();
         digitalWrite(LED_OP, clientConnections > 0);
     }
+
+    // Service UDP server
+    if (pUdpRestApiServer)
+        pUdpRestApiServer->service();
 
     // Service the window shades
     if (pWindowShades)

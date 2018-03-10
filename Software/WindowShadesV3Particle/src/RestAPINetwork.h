@@ -71,9 +71,35 @@ void restAPI_WifiClear(RestAPIEndpointMsg& apiMsg, String& retStr)
     restAPI_setResultStr(retStr, true);
 }
 
+void restAPI_WifiExtAntenna(RestAPIEndpointMsg& apiMsg, String& retStr)
+{
+    WiFi.selectAntenna(ANT_EXTERNAL);
+    Log.info("Set to external antenna");
+    restAPI_setResultStr(retStr, true);
+}
+
+void restAPI_WifiIntAntenna(RestAPIEndpointMsg& apiMsg, String& retStr)
+{
+    WiFi.selectAntenna(ANT_INTERNAL);
+    Log.info("Set to external antenna");
+    restAPI_setResultStr(retStr, true);
+}
+
+void restAPI_WebServRestart(RestAPIEndpointMsg& apiMsg, String& retStr)
+{
+    if (pWebServer)
+    {
+        pWebServer->start(webServerPort);
+    }
+    restAPI_setResultStr(retStr, true);
+}
+
 // Register REST API commands
 void setupRestAPI_Network()
 {
-    restAPIEndpoints.addEndpoint("WC", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiClear, "");
-    restAPIEndpoints.addEndpoint("W", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiSet, "");
+    restAPIEndpoints.addEndpoint("WC", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiClear, "", "");
+    restAPIEndpoints.addEndpoint("W", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiSet, "", "");
+    restAPIEndpoints.addEndpoint("WAX", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiExtAntenna, "", "");
+    restAPIEndpoints.addEndpoint("WAI", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WifiIntAntenna, "", "");
+    restAPIEndpoints.addEndpoint("WSRST", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WebServRestart, "", "");
 }

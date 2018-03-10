@@ -37,7 +37,7 @@ public:
         _infoStrCallback = infoStrCallback;
     }
 
-    void Service()
+    void service()
     {
         // Monitor how long it takes to go around loop
         if (_lastLoopStartValid)

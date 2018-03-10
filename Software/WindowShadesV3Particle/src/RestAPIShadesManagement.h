@@ -1,9 +1,6 @@
 // REST API Shades Management
 // Rob Dobson 2012-2017
 
-// Helper functions to implement application specific REST API calls
-// Rob Dobson 2012-2017
-
 void restAPI_ShadesControl(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
     String shadeNumStr      = RestAPIEndpoints::getNthArgStr(apiMsg._pArgStr, 0);
@@ -69,7 +66,8 @@ void restAPI_ShadesConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
     configEEPROM.writeToEEPROM();
 
     // Return the query result
-    restHelper_QueryStatus(NULL, NULL, retStr);
+    String initialContent = "'name': 'Shades Control'";
+    restHelper_ReportHealth(NULL, &initialContent, retStr);
 }
 
 // Register REST API commands

@@ -12,9 +12,9 @@ public:
     {
         if (curTime >= lastTime)
         {
-            return(curTime > lastTime + maxDuration);
+            return (curTime > lastTime + maxDuration);
         }
-        return(ULONG_MAX - (lastTime - curTime) > maxDuration);
+        return (ULONG_MAX - (lastTime-curTime) > maxDuration);
     }
 
 
@@ -28,11 +28,11 @@ public:
             }
             return maxDuration - (curTime - lastTime);
         }
-        if (ULONG_MAX - (lastTime - curTime) > maxDuration)
+        if (ULONG_MAX - (lastTime-curTime) > maxDuration)
         {
             return 0;
         }
-        return maxDuration - (ULONG_MAX - (lastTime - curTime));
+        return maxDuration - (ULONG_MAX - (lastTime-curTime));
     }
 
 
@@ -41,7 +41,7 @@ public:
     static unsigned long convIPStrToAddr(String& inStr)
     {
         char buf[30];
-        char *cp = buf;
+        char* cp = buf;
 
         inStr.toCharArray(cp, 29);
         unsigned long val, base, n;
@@ -95,7 +95,7 @@ public:
                  */
                 if ((pp >= parts + 3) || (val > 0xff))
                 {
-                    return(INADDR_NONE);
+                return (INADDR_NONE);
                 }
                 *pp++ = val, cp++;
             }
@@ -110,7 +110,7 @@ public:
          */
         if (*cp && (!isascii(*cp) || !isspace(*cp)))
         {
-            return(INADDR_NONE);
+        return (INADDR_NONE);
         }
 
         /*
@@ -126,7 +126,7 @@ public:
         case 2:           /* a.b -- 8.24 bits */
             if (val > 0xffffff)
             {
-                return(INADDR_NONE);
+            return (INADDR_NONE);
             }
             val |= parts[0] << 24;
             break;
@@ -134,7 +134,7 @@ public:
         case 3:           /* a.b.c -- 8.8.16 bits */
             if (val > 0xffff)
             {
-                return(INADDR_NONE);
+            return (INADDR_NONE);
             }
             val |= (parts[0] << 24) | (parts[1] << 16);
             break;
@@ -142,11 +142,11 @@ public:
         case 4:           /* a.b.c.d -- 8.8.8.8 bits */
             if (val > 0xff)
             {
-                return(INADDR_NONE);
+            return (INADDR_NONE);
             }
             val |= (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8);
             break;
         }
-        return(val);
+        return (val);
     }
 };

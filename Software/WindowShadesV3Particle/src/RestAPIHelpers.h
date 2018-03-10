@@ -1,13 +1,9 @@
 // Helper functions to implement REST API calls
 // Rob Dobson 2012-2016
 
-unsigned long restHelper_QueryStatusHash()
-{
-    return ParticleCloud::HASH_VALUE_FOR_ALWAYS_REPORT;
-}
-
-void restHelper_QueryStatus(const char* pIdStr,
-                String* pInitialContentJsonElementList, String& retStr)
+int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
+                        unsigned long* pOutHash, String* pOutStr_jsonMin,
+                        String* pOutStr_urlMin)
 {
     // Get information on status
     String shadeWindowName = configEEPROM.getString("name", "");
@@ -22,69 +18,110 @@ void restHelper_QueryStatus(const char* pIdStr,
     }
     String numShadesStr = String::format("%d", numShades);
 
-    // // Return info about IP and WiFi
-    retStr = "\"numShades\": \"";
-    retStr.concat(numShadesStr);
-    retStr.concat("\", \"name\": \"");
-    retStr.concat(shadeWindowName);
-    retStr.concat("\",");
-
-    // System status
-    uint16_t resetReason = System.resetReason();
-    uint32_t systemVersion = System.versionNumber();
-    String sOut = String::format("\"rst\":\"%d\",\"ver\":\"%08x\",\"blddt\":\"%s\",\"bldtm\":\"%s\",",
-                    resetReason,
-                    systemVersion,
-                    __DATE__, __TIME__);
-    retStr.concat(sOut);
-
-    // WiFi IP Address
-    retStr.concat("\"wifiIP\": \"");
-    String localIPStr = WiFi.localIP();
-    retStr.concat(localIPStr.c_str());
-    // Light sensors
-    const int lightSensorPins[] = { SENSE_A0, SENSE_A1, SENSE_A2 };
-    const int numPins           = sizeof(lightSensorPins) / sizeof(int);
-    retStr.concat("\", \"sens\": [");
-    for (int i = 0; i < numPins; i++)
+    // Generate hash if required - no changes
+    if (pOutHash)
     {
-        retStr.concat("{\"i\": \"");
-        retStr.concat(String::format("%d", i));
-        retStr.concat("\",\"v\":\"");
-        retStr.concat(String::format("%d", analogRead(lightSensorPins[i])));
-        retStr.concat("\"}");
-        if (i != numPins - 1)
-        {
-            retStr.concat(",");
-        }
+        *pOutHash += 0;
     }
-    retStr.concat("]");
-    // Shades
-    retStr.concat(", \"shades\": [");
-    // Add name for each shade
-    for (int i = 0; i < numShades; i++)
+
+    // Generate JSON string if needed
+    if (pOutStr_jsonMin)
     {
-        String shadeName = configEEPROM.getString(String::format("sh%d", i), "");
-        retStr.concat("{\"name\": \"");
-        retStr.concat(shadeName);
-        retStr.concat("\", \"num\": \"");
-        retStr.concat(String::format("%d", i + 1));
-        retStr.concat("\"}");
-        if (i != numShades - 1)
+        // Light sensors
+        String lightSensorStr;
+        const int lightSensorPins[] = { SENSE_A0, SENSE_A1, SENSE_A2 };
+        const int numPins           = sizeof(lightSensorPins) / sizeof(int);
+        lightSensorStr = "\"sens\": [";
+        for (int i = 0; i < numPins; i++)
         {
-            retStr.concat(",");
+            lightSensorStr.concat("{\"i\": \"");
+            lightSensorStr.concat(String::format("%d", i));
+            lightSensorStr.concat("\",\"v\":\"");
+            lightSensorStr.concat(String::format("%d", analogRead(lightSensorPins[i])));
+            lightSensorStr.concat("\"}");
+            if (i != numPins - 1)
+            {
+                lightSensorStr.concat(",");
+            }
         }
+        lightSensorStr.concat("]");
+        // Shades
+        String shadesDetailStr;
+        shadesDetailStr = "\"shades\": [";
+        // Add name for each shade
+        for (int i = 0; i < numShades; i++)
+        {
+            String shadeName = configEEPROM.getString(String::format("sh%d", i), "");
+            shadesDetailStr.concat("{\"name\": \"");
+            shadesDetailStr.concat(shadeName);
+            shadesDetailStr.concat("\", \"num\": \"");
+            shadesDetailStr.concat(String::format("%d", i + 1));
+            shadesDetailStr.concat("\"}");
+            if (i != numShades - 1)
+            {
+                shadesDetailStr.concat(",");
+            }
+        }
+        shadesDetailStr.concat("]");
+        // Shade name and number
+        String shadesStr = String::format("\"numShades\":\"%s\", \"name\": \"%s\"",
+                numShadesStr.c_str(), shadeWindowName.c_str());
+        // Compile output string
+        String sOut = String::format("%s,%s,%s",
+                shadesStr.c_str(), shadesDetailStr.c_str(), lightSensorStr.c_str());
+        *pOutStr_jsonMin = sOut;
     }
-    retStr.concat("]");
-    retStr = "{" + retStr +
-        (pInitialContentJsonElementList != NULL ? "," : "") +
-        (pInitialContentJsonElementList != NULL ? *pInitialContentJsonElementList : "") + "}";
-    retStr = retStr.replace('\'', '\"');
+    // Return number of bits in hash
+    return 1;
+}
+
+unsigned long restHelper_ReportHealthHash()
+{
+    unsigned long hashVal = 0;
+    int hashUsedBits = 0;
+    hashUsedBits += restHelper_ReportHealth_Shades(0, false, &hashVal, NULL, NULL);
+    hashUsedBits += restHelper_ReportHealth_System(hashUsedBits, &hashVal, NULL, NULL);
+    hashUsedBits += restHelper_ReportHealth_Network(hashUsedBits, &hashVal, NULL);
+    // Log.info("RepHealthHash %ld", hashVal);
+    return hashVal;
+}
+
+void restHelper_ReportHealth(const char* pIdStr,
+                String* pInitialContentJsonElementList, String& retStr)
+{
+    String innerJsonStr;
+    int hashUsedBits = 0;
+    // System health
+    String healthStrSystem;
+    hashUsedBits += restHelper_ReportHealth_System(hashUsedBits, NULL, &healthStrSystem, NULL);
+    if (innerJsonStr.length() > 0)
+        innerJsonStr += ",";
+    innerJsonStr += healthStrSystem;
+    // Network information
+    String healthStrNetwork;
+    hashUsedBits += restHelper_ReportHealth_Network(hashUsedBits, NULL, &healthStrNetwork);
+    if (innerJsonStr.length() > 0)
+        innerJsonStr += ",";
+    innerJsonStr += healthStrNetwork;
+    // Shades info
+    String healthStr;
+    hashUsedBits += restHelper_ReportHealth_Shades(0, false, NULL, &healthStr, NULL);
+    if (innerJsonStr.length() > 0)
+        innerJsonStr += ",";
+    innerJsonStr += healthStr;
+    // System information
+    String idStrJSON = String::format("'$id':'%s%s%s'",
+                pIdStr ? pIdStr : "", pIdStr ? "_" : "", System.deviceID().c_str());
+    String outStr = "{" + innerJsonStr + ", " + idStrJSON +
+            (pInitialContentJsonElementList != NULL ? "," : "") +
+            (pInitialContentJsonElementList != NULL ? *pInitialContentJsonElementList : "") + "}";
+    retStr = outStr.replace('\'', '\"');
 }
 
 void restAPI_QueryStatus(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    restHelper_QueryStatus(NULL, NULL, retStr);
+    String initialContent = "'pgm': 'Shades Control'";
+    restHelper_ReportHealth(NULL, &initialContent, retStr);
 }
 
 void restAPI_WipeConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
@@ -92,12 +129,6 @@ void restAPI_WipeConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
     EEPROM.clear();
     configEEPROM.readFromEEPROM();
     Serial.println("EEPROM Cleared");
-    restAPI_setResultStr(retStr, true);
-}
-
-void restAPI_Reset(RestAPIEndpointMsg& apiMsg, String& retStr)
-{
-    System.reset();
     restAPI_setResultStr(retStr, true);
 }
 
@@ -110,14 +141,14 @@ void restAPI_Help(RestAPIEndpointMsg& apiMsg, String& retStr)
 void setupRestAPI_Helpers()
 {
     // Query
-    restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_QueryStatus, "");
+    restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_QueryStatus, "", "");
 
     // Reset device
-    restAPIEndpoints.addEndpoint("RESET", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Reset, "");
+    restAPIEndpoints.addEndpoint("RESET", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Reset, "", "");
 
     // Wipe config
-    restAPIEndpoints.addEndpoint("WIPEALL", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WipeConfig, "");
+    restAPIEndpoints.addEndpoint("WIPEALL", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_WipeConfig, "", "");
 
-    // Wipe config
-    restAPIEndpoints.addEndpoint("HELP", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Help, "");
+    // Help
+    restAPIEndpoints.addEndpoint("HELP", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_Help, "", "");
 }

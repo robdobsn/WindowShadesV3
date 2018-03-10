@@ -1,10 +1,10 @@
 // Notification handler
-// Rob Dobson 2012-2017
+// Rob Dobson 2012-2018
 
 #pragma once
 
-typedef char * (*NotifyCallbackType)(const char *pNotifyIdStr,
-                                     const char *initialContentJsonElementList);
+typedef void (*NotifyCallbackType)(const char* pNotifyIdStr,
+                String* initialContentJsonElementList, String& retStr);
 typedef unsigned long (*NotifyCallbackHashType)();
 
 const int MAX_NOTIFY_PATHS       = 10;
@@ -35,10 +35,7 @@ public:
 class NotifyMgr
 {
 public:
-    enum NotifySendMethod
-    {
-        NOTIFY_NONE, NOTIFY_UDP, NOTIFY_POST, NOTIFY_GET
-    };
+    enum NotifySendMethod { NOTIFY_NONE, NOTIFY_UDP, NOTIFY_POST, NOTIFY_GET };
 
 public:
     NotifyPath             _notifyPaths[MAX_NOTIFY_PATHS];
@@ -75,7 +72,6 @@ public:
         }
     }
 
-
     int getExistingEntry(String& endPoint, String& routeStr)
     {
         for (int i = 0; i < MAX_NOTIFY_PATHS; i++)
@@ -89,20 +85,18 @@ public:
         return -1;
     }
 
-
     int addNotifyPath(String& endPoint, int notifyTypeIdx,
                       long notifyRateSecs, String& routeStr,
                       String& notifyIdStr, String& notifyAuthToken)
     {
-        // Log.trace("Adding notification %s route %s type %d secs %d",
+        // Log.info("Adding notification %s route %s type %d secs %d",
         //             ipAndPort.c_str(), notifyRouteStr.c_str(),
         //             notifyTypeIdx, notifySecsNum);
         // Check if already present
         int pathToUse = getExistingEntry(endPoint, routeStr);
-
         if (pathToUse != -1)
         {
-            Log.trace("addNotifyPath: %s route %s already present - amending",
+            Log.info("addNotifyPath: %s route %s already present - amending",
                             endPoint.c_str(), routeStr.c_str());
         }
         else
@@ -120,7 +114,7 @@ public:
         // Add notify
         if (pathToUse == -1)
         {
-            Log.trace("addNotifyPath: %s no slots left", endPoint.c_str());
+            Log.info("addNotifyPath: %s no slots left", endPoint.c_str());
             return -1;
         }
 
@@ -129,31 +123,31 @@ public:
         int colonPos = endPoint.indexOf(":");
         if (colonPos <= 0)
         {
-            Log.trace("addNotifyPath: %s must contain port", endPoint.c_str());
+            Log.info("addNotifyPath: %s must contain port", endPoint.c_str());
             return -3;
         }
 
         // Extract the parts of the url
         String ipOrUrlBaseStr = endPoint.substring(0, colonPos);
-        String portStr        = endPoint.substring(colonPos + 1);
+        String portStr = endPoint.substring(colonPos+1);
 
         // Validate data for different send Methods
-        if ((notifyTypeIdx < 0) || (notifyTypeIdx >= MAX_NOTIFY_TYPES))
+        if (notifyTypeIdx < 0 || notifyTypeIdx >= MAX_NOTIFY_TYPES)
         {
-            Log.trace("addNotifyPath: notifyTypeIdx %d doesn't exist", notifyTypeIdx);
+            Log.info("addNotifyPath: notifyTypeIdx %d doesn't exist", notifyTypeIdx);
             return -4;
         }
         if (_notifyTypeSendMethods[notifyTypeIdx] == NOTIFY_NONE)
         {
-            Log.trace("addNotifyPath: notifyTypeIdx %d has not been added", notifyTypeIdx);
+            Log.info("addNotifyPath: notifyTypeIdx %d has not been added", notifyTypeIdx);
             return -5;
         }
-        switch (_notifyTypeSendMethods[notifyTypeIdx])
+        switch(_notifyTypeSendMethods[notifyTypeIdx])
         {
         case NOTIFY_UDP:
             if (Utils::convIPStrToAddr(ipOrUrlBaseStr) == Utils::INADDR_NONE)
             {
-                Log.trace("addNotifyPath: for UDP a valid IP Address is needed %s", endPoint.c_str());
+                    Log.info("addNotifyPath: for UDP a valid IP Address is needed %s", endPoint.c_str());
                 return -6;
             }
             break;
@@ -171,17 +165,15 @@ public:
         _notifyPaths[pathToUse]._notifyRateSecs         = notifyRateSecs;
         _notifyPaths[pathToUse]._timeOfLastUpdateMillis = 0;
         _notifyPaths[pathToUse]._updateOutstanding      = true;
-        Log.trace("addNotifyPath: %s added/amended in slot %d",
+        Log.info("addNotifyPath: %s added/amended in slot %d",
                         endPoint.c_str(), pathToUse);
         return pathToUse;
     }
-
 
     bool removeNotifyPath(String& endPoint, String& routeStr)
     {
         // Remove matching path
         int existing = getExistingEntry(endPoint, routeStr);
-
         if (existing != -1)
         {
             _notifyPaths[existing]._endPoint = "";
@@ -189,37 +181,34 @@ public:
         return existing != -1;
     }
 
-
-    int sendNotificationByUDP(int pathIdx, const char *notifyStr)
+    int sendNotificationByUDP(int pathIdx, const char* notifyStr)
     {
         _udpConn.stop();
         _udpConn.begin(_notifyPaths[pathIdx]._port);
         int rslt = _udpConn.sendPacket(notifyStr, strlen(notifyStr),
                                        _notifyPaths[pathIdx]._ipAddrVal,
                                        _notifyPaths[pathIdx]._port);
-        Log.trace("Sending UDP notification to %s:%d endpoint %s rslt %d",
+               Log.info("Sending UDP notification to %s:%d endpoint %s rslt %d",
                         _notifyPaths[pathIdx]._hostname.c_str(),
                         _notifyPaths[pathIdx]._port,
                         _notifyPaths[pathIdx]._endPoint.c_str(),
                         rslt);
-        Log.trace(notifyStr);
+               Log.info(notifyStr);
         if (rslt < 0)
         {
-            Log.trace("Failed to send packet");
+            Log.info("Failed to send packet");
         }
         else
         {
-            Log.trace("Sent notification ok");
+            Log.info("Sent notification ok");
         }
         return rslt;
     }
 
-
-    int sendNotificationByPOST(int pathIdx, const char *notifyStr)
+    int sendNotificationByPOST(int pathIdx, const char* notifyStr)
     {
         TCPClient client;
-
-        Log.trace("Post");
+        Log.info("Post");
         bool conn = false;
         if (_notifyPaths[pathIdx]._ipAddrVal != Utils::INADDR_NONE)
         {
@@ -229,7 +218,7 @@ public:
         {
             conn = client.connect(_notifyPaths[pathIdx]._hostname, _notifyPaths[pathIdx]._port);
         }
-        Log.trace("Connect to %s:%d%s for POST result %s",
+        Log.info("Connect to %s:%d%s for POST result %s",
                         _notifyPaths[pathIdx]._hostname.c_str(),
                         _notifyPaths[pathIdx]._port,
                         _notifyPaths[pathIdx]._routeStr.c_str(),
@@ -245,17 +234,16 @@ public:
             client.println(outStr);
             client.println();
             client.println(notifyStr);
-            Log.trace("Sent POST request");
+            Log.info("Sent POST request");
             client.stop();
         }
+        return 0;
     }
 
-
-    int sendNotificationByGET(int pathIdx, const char *notifyStr)
+    int sendNotificationByGET(int pathIdx, const char* notifyStr)
     {
         TCPClient client;
         bool      conn = false;
-
         if (_notifyPaths[pathIdx]._ipAddrVal != Utils::INADDR_NONE)
         {
             conn = client.connect(_notifyPaths[pathIdx]._ipAddrVal, _notifyPaths[pathIdx]._port);
@@ -264,7 +252,7 @@ public:
         {
             conn = client.connect(_notifyPaths[pathIdx]._hostname, _notifyPaths[pathIdx]._port);
         }
-        Log.trace("Connect to %s:%d%s/%s for GET result %s",
+        Log.info("Connect to %s:%d%s/%s for GET result %s",
                         _notifyPaths[pathIdx]._hostname.c_str(),
                         _notifyPaths[pathIdx]._port,
                         _notifyPaths[pathIdx]._routeStr.c_str(),
@@ -277,26 +265,22 @@ public:
                                            notifyStr);
             client.println(outStr);
             client.println();
-            Log.trace("Sent GET request");
+            Log.info("Sent GET request");
             client.stop();
         }
+        return 0;
     }
-
 
     void service()
     {
         // Check if a new status check is needed
         if (!Utils::isTimeout(millis(), _lastServiceTime, NOTIFY_CHECK_CHANGE_MS))
-        {
             return;
-        }
         _lastServiceTime = millis();
         // Keep track of notifyTypes already known to need an update
         bool notifyTypeNeedsUpdate[MAX_NOTIFY_TYPES];
         for (int j = 0; j < MAX_NOTIFY_TYPES; j++)
-        {
             notifyTypeNeedsUpdate[j] = false;
-        }
         // Check if any notifications registered
         for (int i = 0; i < MAX_NOTIFY_PATHS; i++)
         {
@@ -320,17 +304,17 @@ public:
                         (_notifyTypeHashFns[notifyTypeIdx] != NULL))
                     {
                         unsigned long notifyHash = _notifyTypeHashFns[notifyTypeIdx]();
-                        // Log.trace("Path %s NotifyHash %04x", _notifyPaths[i]._hostname.c_str(), notifyHash);
+                        // Log.info("Path %s NotifyHash %04x", _notifyPaths[i]._hostname.c_str(), notifyHash);
                         if ((_prevNotifyHash[notifyTypeIdx] != notifyHash) || (notifyTypeNeedsUpdate[notifyTypeIdx]))
                         {
                             _prevNotifyHash[notifyTypeIdx]       = notifyHash;
                             notifyTypeNeedsUpdate[notifyTypeIdx] = true;
                             _notifyPaths[i]._updateOutstanding   = true;
-                            // Log.trace(" UpdateNeeded");
+                            // Log.info(" UpdateNeeded");
                         }
                         else
                         {
-                            // Log.trace(" No update needed");
+                            // Log.info(" No update needed");
                         }
                     }
                 }
@@ -341,53 +325,44 @@ public:
         if ((_notifyPaths[_curServicePathIdx]._endPoint.length() != 0) && (_notifyPaths[_curServicePathIdx]._updateOutstanding))
         {
             int        notifyTypeIdx = _notifyPaths[_curServicePathIdx]._notifyTypeIdx;
-            const char *pIdStr       = _notifyPaths[_curServicePathIdx]._notifyIdStr.c_str();
-            char       *notifyStr    =
-                _notifyTypeFns[notifyTypeIdx](pIdStr, NULL);
+            const char* pIdStr = _notifyPaths[_curServicePathIdx]._notifyIdStr.c_str();
+            String notifyStr;
+            _notifyTypeFns[notifyTypeIdx](pIdStr, NULL, notifyStr);
 
-            Log.trace("Notify to send type %d send method %d", notifyTypeIdx, _notifyTypeSendMethods[notifyTypeIdx]);
-            switch (_notifyTypeSendMethods[notifyTypeIdx])
+            Log.info("Notify to send type %d send method %d", notifyTypeIdx, _notifyTypeSendMethods[notifyTypeIdx]);
+            switch(_notifyTypeSendMethods[notifyTypeIdx])
             {
             case NOTIFY_UDP:
-                sendNotificationByUDP(_curServicePathIdx, notifyStr);
+                    sendNotificationByUDP(_curServicePathIdx, notifyStr.c_str());
                 break;
-
             case NOTIFY_POST:
-                sendNotificationByPOST(_curServicePathIdx, notifyStr);
+                    sendNotificationByPOST(_curServicePathIdx, notifyStr.c_str());
                 break;
-
             case NOTIFY_GET:
-                sendNotificationByGET(_curServicePathIdx, notifyStr);
+                    sendNotificationByGET(_curServicePathIdx, notifyStr.c_str());
                 break;
-
             default:
-                Log.trace("Invalid send method for notification");
+                    Log.info("Invalid send method for notification");
                 break;
             }
-            _notifyPaths[_curServicePathIdx]._updateOutstanding = false;
         }
+            _notifyPaths[_curServicePathIdx]._updateOutstanding = false;
         // Find the next used path to do on the next loop
         _curServicePathIdx++;
-        for ( ; _curServicePathIdx < MAX_NOTIFY_PATHS; _curServicePathIdx++)
+        for (;_curServicePathIdx < MAX_NOTIFY_PATHS; _curServicePathIdx++)
         {
             if (_notifyPaths[_curServicePathIdx]._endPoint.length() != 0)
-            {
                 break;
             }
-        }
         if (_curServicePathIdx >= MAX_NOTIFY_PATHS)
-        {
             _curServicePathIdx = 0;
         }
-    }
-
 
     unsigned long simpleHash(unsigned char *str)
     {
         unsigned long hash = 5381;
         int           c    = 0;
-
-        while (c = *str++)
+        while ((c = *str++) != '\0')
         {
             hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
         }

@@ -1,25 +1,21 @@
-// Window Shades V3.1
-// Rob Dobson 2012-2017
+// Window Shades V3.2
+// Rob Dobson 2012-2018
 
-// API
-//   Set WiFi:       /IW/ssss/wwww/mmmm    - ssss = ssid, wwww = password, mmmm = WEP, WPA, WPA2 or NONE
-//   WiFi clear:     /IW                   - clears stored SSID, etc
-//   Set fixed IP:   /IP/iii/mmm/ggg/ddd   - iii = ip addr, mmm = subnet mask, ggg = gateway ip, ddd = dns server ip
-//                   /IP/iii               - iii = ip addr, subnet mask = 255.255.255.0, gateway and dns ip = ip addr with last digit replaced with 1
-//   IP use DHCP:    /IP/AUTO
-//   Query IP/WiFi:  /IP
+// API used for web, UDP and BLE - very short to allow over BLE UART
+//   Query status:   /Q                   - returns network status, number of blinds etc
+//   Set WiFi:       /W/ssss/pppp         - ssss = ssid, pppp = password - assumes WPA2 - does not clear previous WiFi so clear first if required
+//   Clear WiFi:     /WC                  - clears all stored SSID, etc
+//   External antenna: /WAX               - external antenna for WiFi
+//   Internal antenna: /WAI               - internal antenna for WiFi
+//   Wipe config:    /WIPEALL             - wipe config EEPROM
+//   Help:           /HELP
 //   Shade Move:     /BLIND/#/cmd/duration    - # is the shade number,
 //                                           cmd == "up", "down", "stop", "setuplimit", "setdownlimit", "resetmemory"
 //                                           duration is "pulse", "on", "off"
-//   Wipe config:    /WC/1234             - wipe config EEPROM
-//   Query status:   /Q
-//   Help:           /HELP
 //   Set shades:     /SHADECFG/#/name1/name2/name3/name4/name5/name6
 //                                        - # = number of shades, name1..6 = shade name
 //                                        - responds with same info as Query Status
 //
-//   Add Notify:     /NO/iii:ppp          - add a request for status notification on a specific ip address and port e.g. 192.168.0.76:25366
-//   Wipe config:    /WC/1234             - wipe config EEPROM
 
 //#define DEBUG_CLEAR_EEPROM 1
 
@@ -84,21 +80,25 @@ STARTUP(System.enableFeature(FEATURE_RESET_INFO));
 void debugLoopInfoCallback(String& infoStr)
 {
   String ipAddr = WiFi.localIP();
-  infoStr = String::format(" IP %s FW %s RST %d", ipAddr.c_str(),
+  infoStr = String::format("Shades SSID %s IP %s FW %s RST %d",
+            WiFi.SSID(), ipAddr.c_str(),
             System.version().c_str(), System.resetReason());
 }
 DebugLoopTimer debugLoopTimer(10000, debugLoopInfoCallback);
 
 // API Support (for web, etc)
 #include "RestAPIUtils.h"
-#include "RestAPIHelpers.h"
 #include "RestAPINetwork.h"
-#include "RestAPIShadesManagement.h"
+#include "RestAPISystem.h"
 #include "RestAPINotificationManagement.h"
+#include "RestAPIHelpers.h"
+#include "RestAPIShadesManagement.h"
+
 
 void setupRestAPIEndpoints()
 {
     setupRestAPI_Network();
+    setupRestAPI_System();
     setupRestAPI_ShadesManagement();
     setupRestAPI_NotificationManager();
     setupRestAPI_Helpers();
@@ -133,12 +133,12 @@ void setup()
         // Clear the config string
         configEEPROM.setConfigData("");
     }
-    
+
     // Particle Cloud
     pParticleCloud = new ParticleCloud(handleReceivedApiStr,
-                restHelper_QueryStatus, restHelper_QueryStatusHash,
+                restHelper_ReportHealth, restHelper_ReportHealthHash,
                 5000, systemName);
-    pParticleCloud->RegisterVariables();
+    pParticleCloud->registerVariables();
 
     // Construct web server
     pWebServer = new RdWebServer();
@@ -165,8 +165,8 @@ void setup()
 
     // Notifications handler
     pNotifyMgr = new NotifyMgr();
-    /*pNotifyMgr->addNotifyType(1, restHelper_ReportHealth,
-                        restHelper_ReportHealthHash, NotifyMgr::NOTIFY_POST);*/
+    pNotifyMgr->addNotifyType(1, restHelper_ReportHealth,
+                        restHelper_ReportHealthHash, NotifyMgr::NOTIFY_POST);
 
     // Status LEDs
     pinMode(LED_OP, OUTPUT);
@@ -178,10 +178,10 @@ void loop()
 {
     // Service the particle cloud
     if (pParticleCloud)
-        pParticleCloud->Service();
+        pParticleCloud->service();
 
     // Debug loop Timing
-    debugLoopTimer.Service();
+    debugLoopTimer.service();
 
     // Service the web server
     if (pWebServer)

@@ -1,4 +1,4 @@
-// Window Shades V3.2
+// Window Shades V3.3
 // Rob Dobson 2012-2018
 
 // API used for web, UDP and BLE - very short to allow over BLE UART
@@ -64,17 +64,17 @@ static const unsigned long TIME_BETWEEN_WIFI_BEGIN_ATTEMPTS_MS = 10000;
 //#include "NotifyMgr.h"
 //NotifyMgr* pNotifyMgr = NULL;
 
-//// Window shades
-//#include "WindowShades.h"
-//WindowShades* pWindowShades = NULL;
-//const int HC595_SER = D0;              // 75HC595 pins
-//const int HC595_SCK = D1;              //
-//const int HC595_RCK = D2;              //
-//const int LED_OP = D3;
-//const int LED_ACT = D4;
-//const int SENSE_A0 = A0;
-//const int SENSE_A1 = A1;
-//const int SENSE_A2 = A2;
+// Window shades
+#include "WindowShades.h"
+WindowShades* pWindowShades = NULL;
+const int HC595_SER = 23;              // 75HC595 pins
+const int HC595_SCK = 22;              //
+const int HC595_RCK = 14;              //
+const int LED_OP = 32;
+const int LED_ACT = 15;
+const int SENSE_A0 = A0;
+const int SENSE_A1 = A1;
+const int SENSE_A2 = A2;
 
 // Debug loop used to time main loop
 #include "DebugLoopTimer.h"
@@ -92,17 +92,16 @@ DebugLoopTimer debugLoopTimer(10000, debugLoopInfoCallback);
 //#include "RestAPISystem.h"
 //#include "RestAPINotificationManagement.h"
 //#include "RestAPIHelpers.h"
-//#include "RestAPIShadesManagement.h"
-//
-//
-//void setupRestAPIEndpoints()
-//{
+#include "RestAPIShadesManagement.h"
+
+void setupRestAPIEndpoints()
+{
 //    setupRestAPI_Network();
 //    setupRestAPI_System();
 //    setupRestAPI_ShadesManagement();
 //    setupRestAPI_NotificationManager();
 //    setupRestAPI_Helpers();
-//}
+}
 
 void setup()
 {
@@ -111,11 +110,10 @@ void setup()
     Serial.begin(115200);
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 
-//    // Construct Window shades first - so outputs are reset
-//    pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
+    // Construct Window shades first - so outputs are reset
+    pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
 
-    // Short delay before message
-    delay(5000);
+    // Message
     String systemName = "WindowShades";
     Log.notice("%s (built %s %s)"CR, systemName.c_str(), __DATE__, __TIME__);
 
@@ -151,9 +149,9 @@ void setup()
 
 //    // Construct UDP server
 //    pUdpRestApiServer = new UdpRestApiServer(handleReceivedApiStr);
-//
-//    // Setup REST API endpoints
-//    setupRestAPIEndpoints();
+
+    // Setup REST API endpoints
+    setupRestAPIEndpoints();
 
     // Configure web server
     if (pWebServer)
@@ -173,10 +171,10 @@ void setup()
 //    pNotifyMgr = new NotifyMgr();
 //    pNotifyMgr->addNotifyType(1, restHelper_ReportHealth,
 //                        restHelper_ReportHealthHash, NotifyMgr::NOTIFY_POST);
-//
-//    // Status LEDs
-//    pinMode(LED_OP, OUTPUT);
-//    pinMode(LED_ACT, OUTPUT);
+
+    // Status LEDs
+    pinMode(LED_OP, OUTPUT);
+    pinMode(LED_ACT, OUTPUT);
 
     // Add debug blocks
     debugLoopTimer.blockAdd(0, "Web");
@@ -218,11 +216,11 @@ void loop()
 //    // Service UDP server
 //    if (pUdpRestApiServer)
 //        pUdpRestApiServer->service();
-//
-//    // Service the window shades
-//    if (pWindowShades)
-//        pWindowShades->service();
-//
+
+    // Service the window shades
+    if (pWindowShades)
+        pWindowShades->service();
+
 //    // Service notifications
 //    if (pNotifyMgr)
 //        pNotifyMgr->service();

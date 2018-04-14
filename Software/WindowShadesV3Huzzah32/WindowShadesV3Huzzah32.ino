@@ -1,20 +1,21 @@
 // Window Shades V3.3
 // Rob Dobson 2012-2018
 
-// API used for web, UDP and BLE - very short to allow over BLE UART
-//   Query status:   /Q                   - returns network status, number of blinds etc
-//   Set WiFi:       /W/ss/pp/hh          - ss = ssid, pp = password, hh = hostname - assumes WPA2 - does not clear previous WiFi so clear first if required
-//   Clear WiFi:     /WC                  - clears all stored SSID, etc
-//   External antenna: /WAX               - external antenna for WiFi
-//   Internal antenna: /WAI               - internal antenna for WiFi
-//   Wipe config:    /WIPEALL             - wipe shades config
-//   Help:           /HELP
-//   Shade Move:     /BLIND/#/cmd/duration    - # is the shade number,
-//                                           cmd == "up", "down", "stop", "setuplimit", "setdownlimit", "resetmemory"
-//                                           duration is "pulse", "on", "off"
-//   Set shades:     /SHADECFG/#/name1/name2/name3/name4/name5/name6
-//                                        - # = number of shades, name1..6 = shade name
-//                                        - responds with same info as Query Status
+// API used for web, MQTT and BLE - very short to allow over BLE UART
+//   Query status:    /Q                      - returns network status, number of blinds etc
+//   Set WiFi:        /W/ss/pp/hh             - ss = ssid, pp = password, hh = hostname - assumes WPA2 - does not clear previous WiFi so clear first if required
+//   Clear WiFi:      /WC                     - clears all stored SSID, etc
+//   Ext antenna:     /WAX                    - external antenna for WiFi
+//   Int antenna:     /WAI                    - internal antenna for WiFi
+//   Wipe config:     /WIPEALL                - wipe shades config
+//   Help:            /HELP
+//   Shade Move:      /SHADE/#/cmd/duration   - # is the shade number,
+//                                            cmd == "up", "down", "stop", "setuplimit", "setdownlimit", "resetmemory"
+//                                            duration is "pulse", "on", "off"
+//   Shade Move:      /BLIND/#/cmd/duration   - alias of above
+//   Set shades:      /SHADECFG/#/name1/name2/name3/name4/name5/name6
+//                                            - # = number of shades, name1..6 = shade name
+//                                            - responds with same info as Query Status
 //
 
 // Logging
@@ -46,16 +47,8 @@ const int webServerPort = 80;
 RdWebServer* pWebServer = NULL;
 #include "GenResources.h"
 
-//// WiFi
-//String _ssid = "rdint01";
-//String _password = "golgofrinsham";
-//String _hostname = "OfficeBlinds";
-//unsigned long _lastWifiBeginAttemptMs = 0;
-//static const unsigned long TIME_BETWEEN_WIFI_BEGIN_ATTEMPTS_MS = 10000;
-
 // Config for window shades
 ConfigNVS shadesConfig("shades", 10000);
-//static const char* STATIC_CONFIG = "{\"configNamespace\": \"shades\", \"shadesConfigMaxLen\": 10000}";
 
 // Config for WiFi
 ConfigNVS wifiConfig("wifi", 100);

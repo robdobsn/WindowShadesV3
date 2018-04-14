@@ -28,7 +28,7 @@ WindowShades::WindowShades(int hc595_SER, int hc595_SCK, int hc595_RCK)
 
 void WindowShades::setAllOutputs()
 {
-    Log.trace("Setting %08x", _curShadeCtrlBits);
+    Log.trace(F("Setting %08x"CR), _curShadeCtrlBits);
     unsigned long dataVal = _curShadeCtrlBits;
     unsigned long bitMask = 1 << (MAX_WINDOW_SHADES * BITS_PER_SHADE - 1);
     // Send the value to the shift register
@@ -77,7 +77,7 @@ void WindowShades::clearShadeBits(int shadeIdx)
 
 void WindowShades::setTimedOutput(int shadeIdx, int bitMask, bool bitOn, long msDuration, bool bClearExisting)
 {
-    Log.trace("TimedOutput\tidx %d\tmask %d\tbitOn %d\tduration %d\tclear %d", shadeIdx, bitMask, bitOn, msDuration, bClearExisting);
+    Log.trace(F("TimedOutput\tidx %d\tmask %d\tbitOn %d\tduration %d\tclear %d"CR), shadeIdx, bitMask, bitOn, msDuration, bClearExisting);
 
     if (bClearExisting)
     {
@@ -102,7 +102,7 @@ void WindowShades::service()
         {
             if (Utils::isTimeout(millis(), _tickCounts[shadeIdx], _msTimeouts[shadeIdx]))
             {
-                Log.trace("Timeout\tidx %d\tduration %d", shadeIdx, _msTimeouts[shadeIdx]);
+                Log.trace(F("Timeout\tidx %d\tduration %d"CR), shadeIdx, _msTimeouts[shadeIdx]);
                 clearShadeBits(shadeIdx);
                 somethingSet = true;
             }

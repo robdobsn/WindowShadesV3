@@ -6,8 +6,9 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
                                    String* pOutStr_urlMin)
 {
     // Get information on status
-    String shadeWindowName = configEEPROM.getString("name", "");
-    int numShades = configEEPROM.getLong("numShades", 0);
+    String shadeWindowName = shadesConfig.getString("name", "");
+    Log.notice(F("Shades name %s"CR), shadeWindowName.c_str());
+    int numShades = shadesConfig.getLong("numShades", 0);
     if (numShades < 1)
     {
         numShades = 1;
@@ -16,7 +17,7 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
     {
         numShades = pWindowShades->getMaxNumShades();
     }
-    String numShadesStr = String::format("%d", numShades);
+    String numShadesStr = String(numShades);
 
     // Generate hash if required - no changes
     if (pOutHash)
@@ -35,9 +36,9 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
         for (int i = 0; i < numPins; i++)
         {
             lightSensorStr.concat("{\"i\": \"");
-            lightSensorStr.concat(String::format("%d", i));
+            lightSensorStr.concat(String(i));
             lightSensorStr.concat("\",\"v\":\"");
-            lightSensorStr.concat(String::format("%d", analogRead(lightSensorPins[i])));
+            lightSensorStr.concat(String(analogRead(lightSensorPins[i])));
             lightSensorStr.concat("\"}");
             if (i != numPins - 1)
             {
@@ -51,11 +52,11 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
         // Add name for each shade
         for (int i = 0; i < numShades; i++)
         {
-            String shadeName = configEEPROM.getString(String::format("sh%d", i), "");
+            String shadeName = shadesConfig.getString(("sh" + String(i)).c_str(), "");
             shadesDetailStr.concat("{\"name\": \"");
             shadesDetailStr.concat(shadeName);
             shadesDetailStr.concat("\", \"num\": \"");
-            shadesDetailStr.concat(String::format("%d", i + 1));
+            shadesDetailStr.concat(String(i + 1));
             shadesDetailStr.concat("\"}");
             if (i != numShades - 1)
             {
@@ -64,11 +65,9 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
         }
         shadesDetailStr.concat("]");
         // Shade name and number
-        String shadesStr = String::format("\"numShades\":\"%s\", \"name\": \"%s\"",
-                numShadesStr.c_str(), shadeWindowName.c_str());
+        String shadesStr = "\"numShades\":\"" + numShadesStr + "\",\"name\":\"" + shadeWindowName + "\"";
         // Compile output string
-        String sOut = String::format("%s,%s,%s",
-                                     shadesStr.c_str(), shadesDetailStr.c_str(), lightSensorStr.c_str());
+        String sOut = shadesStr + "," + shadesDetailStr + "," + lightSensorStr;
         *pOutStr_jsonMin = sOut;
     }
     // Return number of bits in hash
@@ -82,7 +81,7 @@ unsigned long restHelper_ReportHealthHash()
     hashUsedBits += restHelper_ReportHealth_Shades(0, false, &hashVal, NULL, NULL);
     hashUsedBits += restHelper_ReportHealth_System(hashUsedBits, &hashVal, NULL, NULL);
     hashUsedBits += restHelper_ReportHealth_Network(hashUsedBits, &hashVal, NULL);
-    // Log.info("RepHealthHash %ld", hashVal);
+    // Log.notice(F("RepHealthHash %ld"CR), hashVal);
     return hashVal;
 }
 
@@ -104,31 +103,27 @@ void restHelper_ReportHealth(const char* pIdStr,
         innerJsonStr += ",";
     innerJsonStr += healthStrNetwork;
     // Shades info
-    String healthStr;
-    hashUsedBits += restHelper_ReportHealth_Shades(0, false, NULL, &healthStr, NULL);
+    String healthStrShades;
+    hashUsedBits += restHelper_ReportHealth_Shades(0, false, NULL, &healthStrShades, NULL);
     if (innerJsonStr.length() > 0)
         innerJsonStr += ",";
-    innerJsonStr += healthStr;
+    innerJsonStr += healthStrShades;
     // System information
-    String idStrJSON = String::format("'$id':'%s%s%s'",
-                                      pIdStr ? pIdStr : "", pIdStr ? "_" : "", System.deviceID().c_str());
-    String outStr = "{" + innerJsonStr + ", " + idStrJSON +
+    retStr = "{" + innerJsonStr + (pIdStr ? "," + String(pIdStr) : String("")) +
                     (pInitialContentJsonElementList != NULL ? "," : "") +
                     (pInitialContentJsonElementList != NULL ? *pInitialContentJsonElementList : "") + "}";
-    retStr = outStr.replace('\'', '\"');
 }
 
 void restAPI_QueryStatus(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    String initialContent = "'pgm': 'Shades Control'";
+    String initialContent = "\"pgm\": \"Shades Control\"";
     restHelper_ReportHealth(NULL, &initialContent, retStr);
 }
 
 void restAPI_WipeConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-//TODO    EEPROM.clear();
-    configEEPROM.readFromEEPROM();
-    Serial.println("EEPROM Cleared");
+    shadesConfig.clear();
+    Log.notice(F("restAPI: Shades config cleared"CR));
     restAPI_setResultStr(retStr, true);
 }
 

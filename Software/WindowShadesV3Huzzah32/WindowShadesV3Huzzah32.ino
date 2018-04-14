@@ -3,11 +3,11 @@
 
 // API used for web, UDP and BLE - very short to allow over BLE UART
 //   Query status:   /Q                   - returns network status, number of blinds etc
-//   Set WiFi:       /W/ssss/pppp         - ssss = ssid, pppp = password - assumes WPA2 - does not clear previous WiFi so clear first if required
+//   Set WiFi:       /W/ss/pp/hh          - ss = ssid, pp = password, hh = hostname - assumes WPA2 - does not clear previous WiFi so clear first if required
 //   Clear WiFi:     /WC                  - clears all stored SSID, etc
 //   External antenna: /WAX               - external antenna for WiFi
 //   Internal antenna: /WAI               - internal antenna for WiFi
-//   Wipe config:    /WIPEALL             - wipe config EEPROM
+//   Wipe config:    /WIPEALL             - wipe shades config
 //   Help:           /HELP
 //   Shade Move:     /BLIND/#/cmd/duration    - # is the shade number,
 //                                           cmd == "up", "down", "stop", "setuplimit", "setdownlimit", "resetmemory"
@@ -25,11 +25,20 @@
 
 // Utils
 #include "Utils.h"
-#include "StringFormat.h"
+
+// Config
+#include "ConfigNVS.h"
+
+// WiFi Manager
+#include "WiFiManager.h"
+WiFiManager wifiManager;
 
 // API Endpoints
 #include "RestAPIEndpoints.h"
 RestAPIEndpoints restAPIEndpoints;
+
+// Serial console - for configuration
+#include "SerialConsole.h"
 
 // Web server
 #include "RdWebServer.h"
@@ -37,21 +46,21 @@ const int webServerPort = 80;
 RdWebServer* pWebServer = NULL;
 #include "GenResources.h"
 
-// WiFi
-String _ssid = "rdint01";
-String _password = "golgofrinsham";
-String _hostname = "OfficeBlinds";
-unsigned long _lastWifiBeginAttemptMs = 0;
-static const unsigned long TIME_BETWEEN_WIFI_BEGIN_ATTEMPTS_MS = 10000;
+//// WiFi
+//String _ssid = "rdint01";
+//String _password = "golgofrinsham";
+//String _hostname = "OfficeBlinds";
+//unsigned long _lastWifiBeginAttemptMs = 0;
+//static const unsigned long TIME_BETWEEN_WIFI_BEGIN_ATTEMPTS_MS = 10000;
 
+// Config for window shades
+ConfigNVS shadesConfig("shades", 10000);
+//static const char* STATIC_CONFIG = "{\"configNamespace\": \"shades\", \"shadesConfigMaxLen\": 10000}";
 
-//// Config
-//#include "ConfigEEPROM.h"
-//ConfigEEPROM configEEPROM;
-//static const char* EEPROM_CONFIG_LOCATION_STR =
-//    "{\"base\": 0, \"maxLen\": 1000}";
-//
-//// ParticleCloud support
+// Config for WiFi
+ConfigNVS wifiConfig("wifi", 100);
+
+// ParticleCloud support
 //#include "ParticleCloud.h"
 //ParticleCloud* pParticleCloud = NULL;
 //
@@ -88,24 +97,26 @@ DebugLoopTimer debugLoopTimer(10000, debugLoopInfoCallback);
 
 //// API Support (for web, etc)
 #include "RestAPIUtils.h"
-//#include "RestAPINetwork.h"
-//#include "RestAPISystem.h"
+#include "RestAPINetwork.h"
+#include "RestAPISystem.h"
 //#include "RestAPINotificationManagement.h"
-//#include "RestAPIHelpers.h"
+#include "RestAPIHelpers.h"
 #include "RestAPIShadesManagement.h"
+
+// Serial console
+SerialConsole serialConsole(0, handleReceivedApiStr);
 
 void setupRestAPIEndpoints()
 {
-//    setupRestAPI_Network();
-//    setupRestAPI_System();
-//    setupRestAPI_ShadesManagement();
+    setupRestAPI_Network();
+    setupRestAPI_System();
+    setupRestAPI_ShadesManagement();
 //    setupRestAPI_NotificationManager();
-//    setupRestAPI_Helpers();
+    setupRestAPI_Helpers();
 }
 
 void setup()
 {
-
     // Logging
     Serial.begin(115200);
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
@@ -115,28 +126,18 @@ void setup()
 
     // Message
     String systemName = "WindowShades";
-    Log.notice("%s (built %s %s)"CR, systemName.c_str(), __DATE__, __TIME__);
+    Log.notice(F("%s (built %s %s)"CR), systemName.c_str(), __DATE__, __TIME__);
 
-//    #ifdef DEBUG_CLEAR_EEPROM
-//    EEPROM.clear();
-//    Log.info("EEPROM Cleared"CR);
-//    #endif
-//
-//    // EEPROM debug
-//    size_t length = EEPROM.length();
-//    Log.info("EEPROM has %d bytes available", length);
-//
-//    // Initialise the config manager
-//    configEEPROM.setConfigLocation(EEPROM_CONFIG_LOCATION_STR);
-//
-//    // Validate settings
-//    int numShades = configEEPROM.getLong("numShades", -1);
-//    if (numShades == -1)
-//    {
-//        // Clear the config string
-//        configEEPROM.setConfigData("");
-//    }
+    // Initialise the config managers
+    shadesConfig.setup();
+    wifiConfig.setup();
 
+    // Override the system name if provided
+    systemName = shadesConfig.getString("name", systemName.c_str());
+
+    // WiFi Manager
+    wifiManager.setup(&wifiConfig, systemName.c_str());
+    
 //
 //    // Particle Cloud
 //    pParticleCloud = new ParticleCloud(handleReceivedApiStr,
@@ -158,7 +159,7 @@ void setup()
     {
         // Add resources to web server
         pWebServer->addStaticResources(genResources, genResourcesCount);
-//        pWebServer->addRestAPIEndpoints(&restAPIEndpoints);
+        pWebServer->addRestAPIEndpoints(&restAPIEndpoints);
         // Start the web server
         pWebServer->start(webServerPort);
     }
@@ -190,8 +191,11 @@ void loop()
     // Debug loop Timing
     debugLoopTimer.service();
 
+    // Service WiFi
+    wifiManager.service();
+
     // Service the web server
-    if ( WiFi.status() == WL_CONNECTED)
+    if (wifiManager.isConnected())
     {
         if (pWebServer)
         {
@@ -204,14 +208,11 @@ void loop()
     //        digitalWrite(LED_OP, clientConnections > 0);
         }
     }
-    else if (Utils::isTimeout(millis(), _lastWifiBeginAttemptMs, TIME_BETWEEN_WIFI_BEGIN_ATTEMPTS_MS))
-    {
-        WiFi.begin(_ssid.c_str(), _password.c_str());
-        WiFi.setHostname(_hostname.c_str());
-        _lastWifiBeginAttemptMs = millis();
-    }
 
-  
+     // Serial console
+    debugLoopTimer.blockStart(1);
+    serialConsole.service();
+    debugLoopTimer.blockEnd(1);
 
 //    // Service UDP server
 //    if (pUdpRestApiServer)

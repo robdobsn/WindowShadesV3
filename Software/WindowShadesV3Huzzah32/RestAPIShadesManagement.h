@@ -59,15 +59,15 @@ void restAPI_ShadesConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
     configStr.concat("}");
 
     // Debug
-    Log.trace("Writing config %s", configStr.c_str());
+    Log.trace(F("Writing config %s"CR), configStr.c_str());
 
     // Store in config
-//TODO    configEEPROM.setConfigData(configStr.c_str());
-//TODO    configEEPROM.writeToEEPROM();
+    shadesConfig.setConfigData(configStr.c_str());
+    shadesConfig.writeConfig();
 
     // Return the query result
-//TODO    String initialContent = "'name': 'Shades Control'";
-//TODO    restHelper_ReportHealth(NULL, &initialContent, retStr);
+    String initialContent = "\"pgm\": \"Shades Control\"";
+    restHelper_ReportHealth(NULL, &initialContent, retStr);
 }
 
 // Register REST API commands

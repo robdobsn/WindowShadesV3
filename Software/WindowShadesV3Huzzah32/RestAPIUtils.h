@@ -3,7 +3,13 @@
 
 void restAPI_setResultStr(String& rsltStr, bool rslt)
 {
-    rsltStr = String("{ \"rslt\": \")") + (rslt ? "ok" : "fail") + String("\" }");
+    rsltStr = String("{ \"rslt\": \"") + (rslt ? "ok" : "fail") + String("\" }");
+}
+
+void restAPI_Reset(RestAPIEndpointMsg& apiMsg, String& retStr)
+{
+    // Restart the device
+    ESP.restart();
 }
 
 void handleReceivedApiStr(const char* requestStr, String& rsltStr)
@@ -12,3 +18,4 @@ void handleReceivedApiStr(const char* requestStr, String& rsltStr)
     if (rsltStr.length() == 0)
         restAPI_setResultStr(rsltStr, false);
 }
+

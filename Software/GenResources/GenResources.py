@@ -13,7 +13,7 @@ DEFAULT_UI = "WindowShades"
 GEN_HELP_TEXT = '--UI WindowShades'
 
 # Path to the src folder which is to contain the GenResources.h file
-GEN_RESOURCES_H_FOLDER = "../WindowShadesV3Particle/src"
+GEN_RESOURCES_H_FOLDER = "../WindowShadesV3Huzzah32"
 
 # NOTE that if MINIFY_HTML is True then the Node package html-minifier needs to be installed globally
 # npm install html-minifier -g

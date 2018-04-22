@@ -7,8 +7,10 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
 {
     // Get information on status
     String shadeWindowName = shadesConfig.getString("name", "");
+    if (shadeWindowName.length() == 0)
+        shadeWindowName = "Window Shades";
     Log.notice(F("Shades name %s"CR), shadeWindowName.c_str());
-    int numShades = shadesConfig.getLong("numShades", 0);
+    int numShades= shadesConfig.getLong("numShades", 0);
     if (numShades < 1)
     {
         numShades = 1;
@@ -53,10 +55,15 @@ int restHelper_ReportHealth_Shades(int bitPosStart, bool incRelockInStr,
         for (int i = 0; i < numShades; i++)
         {
             String shadeName = shadesConfig.getString(("sh" + String(i)).c_str(), "");
+            if (shadeName.length() == 0)
+                shadeName = "Shade " + String(i+1);
             shadesDetailStr.concat("{\"name\": \"");
             shadesDetailStr.concat(shadeName);
             shadesDetailStr.concat("\", \"num\": \"");
             shadesDetailStr.concat(String(i + 1));
+            bool isBusy = pWindowShades->isBusy(i);
+            shadesDetailStr.concat("\", \"busy\": \"");
+            shadesDetailStr.concat(String(isBusy ? "1" : "0"));
             shadesDetailStr.concat("\"}");
             if (i != numShades - 1)
             {

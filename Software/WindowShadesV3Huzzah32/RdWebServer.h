@@ -27,12 +27,12 @@ private:
 
     // Time between TCP frames
     // On Photon before 0.7.0-rc.4 this was needed 20ms works almost all the time, 10ms fails
-    static const unsigned long MS_WAIT_BETWEEN_TCP_FRAMES = 0;
-    static const unsigned long MS_WAIT_AFTER_LAST_TCP_FRAME = 0;
+    static const unsigned long MS_WAIT_BETWEEN_TCP_FRAMES = 10;
+    static const unsigned long MS_WAIT_AFTER_LAST_TCP_FRAME = 10;
 
     // Max chunk size of HTTP response sending
     // On Photon 2000 works ok, 5000 fails
-    static const int HTTPD_MAX_RESP_CHUNK_SIZE = 4000;
+    static const int HTTPD_MAX_RESP_CHUNK_SIZE = 2000;
 
     // TCP client
     WiFiClient _TCPClient;

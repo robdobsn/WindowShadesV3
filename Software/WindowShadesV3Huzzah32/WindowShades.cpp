@@ -8,14 +8,20 @@
 #include "WindowShades.h"
 #include "Utils.h"
 
-WindowShades::WindowShades(int hc595_SER, int hc595_SCK, int hc595_RCK)
+WindowShades::WindowShades(int hc595_SER, int hc595_SCK, int hc595_LATCH, int hc595_RST)
 {
     _hc595_SER = hc595_SER;
     pinMode(_hc595_SER, OUTPUT);
+    digitalWrite(_hc595_SER, 0);
     _hc595_SCK = hc595_SCK;
     pinMode(_hc595_SCK, OUTPUT);
-    _hc595_RCK = hc595_RCK;
-    pinMode(_hc595_RCK, OUTPUT);
+    digitalWrite(_hc595_SCK, 0);
+    _hc595_LATCH = hc595_LATCH;
+    pinMode(_hc595_LATCH, OUTPUT);
+    digitalWrite(_hc595_LATCH, 0);
+    _hc595_RST = hc595_RST;
+    pinMode(_hc595_RST, OUTPUT);
+    digitalWrite(_hc595_RST, 1);
     for (int i = 0; i < MAX_WINDOW_SHADES; i++)
     {
         _msTimeouts[i] = 0;
@@ -24,7 +30,6 @@ WindowShades::WindowShades(int hc595_SER, int hc595_SCK, int hc595_RCK)
     _curShadeCtrlBits = 0;
     setAllOutputs();
 }
-
 
 void WindowShades::setAllOutputs()
 {
@@ -44,11 +49,18 @@ void WindowShades::setAllOutputs()
         delayMicroseconds(1);
     }
     // Move the value into the output register
-    digitalWrite(_hc595_RCK, HIGH);
+    digitalWrite(_hc595_LATCH, HIGH);
     delayMicroseconds(1);
-    digitalWrite(_hc595_RCK, LOW);
+    digitalWrite(_hc595_LATCH, LOW);
 }
 
+bool WindowShades::isBusy(int shadeIdx)
+{
+    // Check validity
+    if (shadeIdx < 0 || shadeIdx >= MAX_WINDOW_SHADES)
+        return false;
+    return _msTimeouts[shadeIdx] != 0;
+}
 
 void WindowShades::setShadeBit(int shadeIdx, int bitMask, int bitIsOn)
 {
@@ -117,6 +129,10 @@ void WindowShades::service()
 
 void WindowShades::doCommand(int shadeIdx, String& cmdStr, String& durationStr)
 {
+    // Check validity
+    if (shadeIdx < 0 || shadeIdx >= MAX_WINDOW_SHADES)
+        return;
+        
     // Get duration and on/off
     int pinOn      = false;
     int msDuration = 0;
@@ -135,6 +151,11 @@ void WindowShades::doCommand(int shadeIdx, String& cmdStr, String& durationStr)
     {
         pinOn      = true;
         msDuration = PULSE_ON_MILLISECS;
+    }
+    else
+    {
+        pinOn      = true;
+        msDuration = atoi(durationStr.c_str());
     }
 
     // Handle commands

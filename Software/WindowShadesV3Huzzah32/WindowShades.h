@@ -16,7 +16,7 @@ public:
     static const int  MAX_WINDOW_SHADES     = 6;
 
 
-    WindowShades(int hc595_SER, int hc595_SCK, int hc595_RCK);
+    WindowShades(int hc595_SER, int hc595_SCK, int hc595_LATCH, int hc595_RST);
 
     void service();
     void doCommand(int shadeIdx, String& cmdStr, String& durationStr);
@@ -26,11 +26,13 @@ public:
         return MAX_WINDOW_SHADES;
     }
 
+    bool isBusy(int shadeIdx);
 
 private:
     int           _hc595_SER;
     int           _hc595_SCK;
-    int           _hc595_RCK;
+    int           _hc595_LATCH;
+    int           _hc595_RST;
     unsigned long _msTimeouts[MAX_WINDOW_SHADES];
     int           _tickCounts[MAX_WINDOW_SHADES];
 

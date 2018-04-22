@@ -11,12 +11,19 @@ void restAPI_ShadesControl(RestAPIEndpointMsg& apiMsg, String& retStr)
     if ((shadeNum < 1) || (shadeNum > pWindowShades->getMaxNumShades()))
     {
         restAPI_setResultStr(retStr, false);
+        return;
     }
     int shadeIdx = shadeNum - 1;
     if (pWindowShades == NULL)
     {
         restAPI_setResultStr(retStr, false);
+        return;
     }
+//    if (!pWindowShades->canAcceptCommand(shadeIdx, shadeCmdStr))
+//    {
+//        retStr = String("{ \"rslt\": \"busy\" }");
+//        return;
+//    }
     pWindowShades->doCommand(shadeIdx, shadeCmdStr, shadeDurationStr);
     restAPI_setResultStr(retStr, true);
 }
@@ -26,6 +33,8 @@ void restAPI_ShadesConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
     String configStr = "{";
     // Window name
     String shadeWindowName = RestAPIEndpoints::getNthArgStr(apiMsg._pArgStr, 0);
+    if (shadeWindowName.length() == 0)
+        shadeWindowName = "Window Shades";
     configStr.concat("\"name\":\"");
     configStr.concat(shadeWindowName);
     configStr.concat("\"");
@@ -50,6 +59,8 @@ void restAPI_ShadesConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
     for (int i = 0; i < numShades; i++)
     {
         String shadeName = RestAPIEndpoints::getNthArgStr(apiMsg._pArgStr, 2 + i);
+        if (shadeName.length() == 0)
+            shadeName = "Shade " + String(i+1);
         configStr.concat(",\"sh");
         configStr.concat(i);
         configStr.concat("\":\"");
@@ -74,6 +85,7 @@ void restAPI_ShadesConfig(RestAPIEndpointMsg& apiMsg, String& retStr)
 void setupRestAPI_ShadesManagement()
 {
     restAPIEndpoints.addEndpoint("BLIND", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesControl, "");
+    restAPIEndpoints.addEndpoint("SHADE", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesControl, "");
     restAPIEndpoints.addEndpoint("SHADECFG", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_ShadesConfig, "");
 }
 

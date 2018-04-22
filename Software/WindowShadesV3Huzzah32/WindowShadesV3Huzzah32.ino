@@ -69,10 +69,11 @@ ConfigNVS wifiConfig("wifi", 100);
 // Window shades
 #include "WindowShades.h"
 WindowShades* pWindowShades = NULL;
-const int HC595_SER = 23;              // 75HC595 pins
-const int HC595_SCK = 22;              //
-const int HC595_RCK = 14;              //
-const int LED_OP = 32;
+const int HC595_SER = 21;               // 75HC595 pins
+const int HC595_SCK = A5;               //
+const int HC595_LATCH = 16;             //
+const int HC595_RST = 17;               //
+const int LED_OP = 13;
 const int LED_ACT = 15;
 const int SENSE_A0 = A0;
 const int SENSE_A1 = A1;
@@ -115,7 +116,7 @@ void setup()
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 
     // Construct Window shades first - so outputs are reset
-    pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_RCK);
+    pWindowShades = new WindowShades(HC595_SER, HC595_SCK, HC595_LATCH, HC595_RST);
 
     // Message
     String systemName = "WindowShades";
@@ -172,6 +173,7 @@ void setup()
 
     // Add debug blocks
     debugLoopTimer.blockAdd(0, "Web");
+    debugLoopTimer.blockAdd(1, "Serial");
 
 }
 
